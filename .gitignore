@@ -1,0 +1,4 @@
+sandbox/log/
+sandbox/e3-setup.wsb
+__pycache__/
+*.pyc

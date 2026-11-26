@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="nl">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E3 setup · checklist</title>
+<style>
+*{box-sizing:border-box}
+body{font:15px/1.5 'TWK Lausanne',Arial,sans-serif;margin:0;color:#000;background:#fff}
+main{max-width:980px;margin:40px auto;padding:0 28px;display:grid;grid-template-columns:1.1fr .9fr;gap:40px}
+h1{font-weight:400;font-size:28px;margin:0 0 24px;grid-column:1/-1}
+h2{font-weight:400;font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 12px;color:#555}
+label.v{display:block;margin:0 0 14px}
+label.v span{display:block;font-size:13px;color:#555;margin-bottom:3px}
+input[type=text],input[type=email]{width:100%;font:inherit;padding:8px 10px;border:1px solid #000;border-radius:0}
+.rij{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e3e3e3;padding:10px 0}
+.keuze{display:flex;border:1px solid #000}
+.keuze button{font:inherit;font-size:13px;background:#fff;border:0;padding:5px 12px;cursor:pointer}
+.keuze button+button{border-left:1px solid #000}
+.keuze button.aan{background:#000;color:#fff}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #e3e3e3}
+li b{font-weight:400}
+li i{font-style:normal;font-size:13px;color:#555}
+li.ja i{color:#000}
+li.nee b{color:#999}
+#bewaar{margin-top:22px;font:inherit;background:#000;color:#fff;border:0;padding:10px 22px;cursor:pointer}
+#melding{margin-top:10px;font-size:13px;min-height:20px}
+#melding.fout{color:#b00}
+.klaar main{opacity:.35;pointer-events:none}
+#klaar{display:none;max-width:980px;margin:-20px auto 0;padding:0 28px;font-size:18px}
+.klaar #klaar{display:block}
+@media(max-width:760px){main{grid-template-columns:1fr}}
+</style>
+<body>
+<p id="klaar">Bewaard. Sluit dit venster; de setup gaat verder.</p>
+<main>
+  <h1>Welkom bij Equals Three</h1>
+  <section>
+    <h2>Wie ben je</h2>
+    <label class="v"><span>Werkadres</span><input id="mail" type="email" autocomplete="email" placeholder="voornaam@"></label>
+    <label class="v"><span>Naam</span><input id="naam" type="text" autocomplete="name"></label>
+    <label class="v"><span>Initialen</span><input id="ini" type="text" maxlength="4" style="width:90px;text-transform:uppercase"></label>
+    <h2 style="margin-top:26px">Wat gebruik je</h2>
+    <div id="vragen"></div>
+    <button id="bewaar">Bewaren</button>
+    <div id="melding"></div>
+  </section>
+  <section>
+    <h2>Wat de setup voor jou aansluit</h2>
+    <ul id="flows"></ul>
+  </section>
+</main>
+<script>
+const D = /*DATA*/null;
+const V = [
+  ["rol", "Rol", [["partner", "Partner"], ["consultant", "Consultant"]]],
+  ["eigenaar", "Beheert het framework", [[true, "Ja"], [false, "Nee"]]],
+  ["toestel", "Gsm", [["iPhone", "iPhone"], ["Android", "Android"]]],
+  ["granola", "Online meetings opnemen met Granola", [[true, "Ja"], [false, "Nee"]]],
+  ["plaud", "Plaud-toestel", [[true, "Ja"], [false, "Nee"]]],
+  ["opnemen", "Gesprekken aan tafel opnemen met de laptop", [[true, "Ja"], [false, "Nee"]]],
+  ["whatsapp", "Werkchats uit WhatsApp laten meelezen", [[true, "Ja"], [false, "Nee"]]],
+];
+const A = {rol: "consultant", eigenaar: false, toestel: "iPhone", granola: true, plaud: false, opnemen: false, whatsapp: true};
+const vooraf = (D && D.vooraf) || {};
+for (const [k] of V) if (k in vooraf && vooraf[k] !== null) A[k] = vooraf[k];
+const $ = id => document.getElementById(id);
+if (vooraf.mail) $("mail").value = vooraf.mail;
+if (vooraf.naam) $("naam").value = vooraf.naam;
+if (vooraf.ini) $("ini").value = vooraf.ini;
+$("mail").placeholder = "voornaam@" + D.domein;
+
+function vul() {
+  const m = $("mail").value.trim().toLowerCase();
+  const p = (D.personen || []).find(x => (x.mail || "").toLowerCase() === m);
+  if (p) { if (!$("naam").value) $("naam").value = p.naam || ""; if (!$("ini").value) $("ini").value = p.ini || ""; }
+}
+$("mail").addEventListener("change", vul);
+
+function vragen() {
+  $("vragen").innerHTML = "";
+  for (const [k, titel, opties] of V) {
+    const r = document.createElement("div"); r.className = "rij";
+    r.innerHTML = `<span>${titel}</span>`;
+    const g = document.createElement("div"); g.className = "keuze";
+    for (const [w, t] of opties) {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = t;
+      if (A[k] === w) b.className = "aan";
+      b.onclick = () => { A[k] = w; vragen(); flows(); };
+      g.appendChild(b);
+    }
+    r.appendChild(g); $("vragen").appendChild(r);
+  }
+}
+
+function geldt(g) {
+  if (g === "altijd") return true;
+  if (g === "eigenaar") return A.eigenaar === true;
+  if (g === "iphone" || g === "android") return A.toestel.toLowerCase() === g;
+  return A[g] === true;
+}
+
+function flows() {
+  $("flows").innerHTML = "";
+  for (const f of D.flows) {
+    const ja = f.geldt.some(geldt);
+    const li = document.createElement("li");
+    let s = "wordt aangesloten";
+    if (!ja) s = "niet voor jou";
+    else if (f.vrijgave === "dicht") s = "volgt later";
+    else if (f.vrijgave === "proef") s = "wordt klaargezet";
+    li.className = ja && f.vrijgave !== "dicht" ? "ja" : "nee";
+    li.innerHTML = `<b>${f.naam}</b><i>${s}</i>`;
+    $("flows").appendChild(li);
+  }
+}
+
+$("bewaar").onclick = async () => {
+  const body = {mail: $("mail").value, naam: $("naam").value, ini: $("ini").value, ...A};
+  $("melding").className = ""; $("melding").textContent = "Bewaren...";
+  try {
+    const r = await (await fetch("/bewaar", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)})).json();
+    if (!r.ok) { $("melding").className = "fout"; $("melding").textContent = r.fout; return; }
+    document.body.className = "klaar";
+  } catch (e) { $("melding").className = "fout"; $("melding").textContent = "Niet bewaard: de setup luistert niet meer. Start hem opnieuw."; }
+};
+vragen(); flows();
+</script>
+</body>
+</html>

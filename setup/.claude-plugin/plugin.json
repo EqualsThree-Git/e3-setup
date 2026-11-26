@@ -1,0 +1,9 @@
+{
+  "name": "setup",
+  "version": "1.0.0",
+  "description": "Setup-wizard van Equals Three: van een kale pc tot een werkend AI-framework Finance, met een rapport per flow.",
+  "author": {
+    "name": "Equals Three"
+  },
+  "keywords": ["onboarding", "setup", "wizard"]
+}

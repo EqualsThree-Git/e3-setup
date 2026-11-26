@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "e3-setup",
+  "description": "Setup-wizard van Equals Three: zet een nieuwe pc van nul op het AI-framework Finance.",
+  "owner": {
+    "name": "Equals Three"
+  },
+  "plugins": [
+    {
+      "name": "setup",
+      "description": "Setup-wizard: kijkt de pc, Claude Code, plugins, connectors, drives, sleutels en taken na, zet klaar wat kan en eindigt met een rapport per flow.",
+      "author": {
+        "name": "Equals Three"
+      },
+      "source": "./setup",
+      "category": "productivity"
+    }
+  ]
+}

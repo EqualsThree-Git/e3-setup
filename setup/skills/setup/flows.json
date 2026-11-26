@@ -1,0 +1,523 @@
+{
+  "versie": "2.0",
+  "bijgewerkt": "2026-11-26",
+  "uitleg": "Enige plek waar staat wat de wizard aansluit. Een flow die rijp is, zet je hier van 'proef' of 'dicht' op 'vrij'; de wizard zelf verandert dan niet. vrijgave: vrij = alles aansluiten en inplannen, proef = voorbereiden en testen maar geen taak inplannen, dicht = enkel tonen wat ontbreekt. Namen, adressen en de webapp staan niet hier (de repo is publiek) maar in paden.config op de shared drive; de wizard voegt die samen.",
+  "domein": "equalsthree.be",
+  "repo_dossync": "EqualsThree-Git/e3-dossync",
+  "paden": {
+    "finance": "E3 - Finance",
+    "inbox": "E3 - Finance/Dossync/inbox",
+    "inbox_ruw": "E3 - Finance/Dossync/inbox/ruw",
+    "verwerkt_test": "E3 - Finance/Dossync/_verwerkt/setup-test",
+    "opvang": "E3 - Finance/Dossync/opvang",
+    "framework": "E3 - Finance/Framework",
+    "klanten": "1. Equals Three - Clients",
+    "laptop_taak": "E3 - Finance/Dossync/opvang/geluidsrecorder - taak.md",
+    "handleiding_memo": "E3 - Finance/Framework/05 Handleidingen/Memo naar de inbox (iPhone en Android).md",
+    "handleiding_foto": "E3 - Finance/Framework/05 Handleidingen/Foto of visitekaartje naar de inbox.md",
+    "handleiding_whatsapp": "E3 - Finance/Framework/05 Handleidingen/WhatsApp-bericht naar de inbox.md",
+    "opvang_runs": "E3 - Finance/Dossync/opvang/runs",
+    "e3crm_toegang": "E3 - Finance/E3CRM/_toegang/e3crm.json",
+    "teaminstructies": "E3 - Finance/Framework/01 Framework/Teaminstructies Claude.md",
+    "config": "E3 - Finance/Framework/10 Flows/setup-config.json"
+  },
+  "stappen": [
+    {
+      "id": "A0",
+      "flow": "basis",
+      "titel": "Programma's",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "programmas",
+      "actie": "Wat ontbreekt installeren met winget, per gebruiker waar dat kan: Git, Node.js, GitHub CLI, Claude Code, de Claude-app, de WebView2-runtime en Google Drive voor desktop, de Visual C++-runtime als je met de laptop opneemt (faster-whisper), en Chrome als je WhatsApp laat meelezen. Normaal deed start.ps1 dit al.",
+      "gebruiker": "Windows vraagt toestemming voor een installatie: klik Ja. Lukt het niet zonder beheerdersrechten, vraag {beheerder} het programma te installeren.",
+      "wie": "jij"
+    },
+    {
+      "id": "A12",
+      "flow": "basis",
+      "titel": "GitHub",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "github",
+      "actie": "Nakijken of de GitHub CLI aangemeld is en de privérepo's van EqualsThree-Git (e3-finance-skills, e3-dossync) kan lezen; git gebruikt dezelfde aanmelding (gh auth setup-git).",
+      "gebruiker": "Voer in een terminal 'gh auth login --web' uit, druk op Enter, plak de code in de browser en klik Authorize (je eigen GitHub-account; maak er een op github.com als je er geen hebt). Geen toegang tot de repo's: vraag {beheerder} om een uitnodiging van EqualsThree-Git en aanvaard ze in de mail van GitHub.",
+      "wie": "jij"
+    },
+    {
+      "id": "A1",
+      "flow": "basis",
+      "titel": "Wie ben je",
+      "soort": "claude",
+      "geldt": "altijd",
+      "controle": "Het werkadres staat al in de staat (checklist). Bevestig het met de Gmail-connector: search_threads met in:sent, één resultaat, enkel de afzender. De afzender moet gelijk zijn aan het werkadres uit de checklist, eindigen op @equalsthree.be en niet in 'geweigerd' staan. Noteer ok, mail, ini en naam. Geen Arx: Arx wordt vervangen door E3CRM.",
+      "noteer": "account",
+      "gebruiker": "Vul de checklist in (de wizard opent ze) en verbind Gmail in claude.ai (Instellingen › Connectors) met {mail}.",
+      "wie": "jij"
+    },
+    {
+      "id": "A2",
+      "flow": "basis",
+      "titel": "Laptop",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "laptop",
+      "actie": "Python 3.12 installeren met winget, zonder adminrechten",
+      "gebruiker": "Installeer Google Drive voor desktop en meld je aan met {mail}: https://www.google.com/drive/download/",
+      "wie": "jij"
+    },
+    {
+      "id": "A3",
+      "flow": "basis",
+      "titel": "E3-plugins",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "plugins",
+      "actie": "De marketplaces e3-shared (EqualsThree-Git/e3-finance-skills) en e3-dossync (EqualsThree-Git/e3-dossync) toevoegen en de plugins tools, deliverables en dossync installeren of bijwerken. De oude chat-skills (zips) en .plugin-bestanden worden niet meer geinstalleerd.",
+      "gebruiker": "Typ /plugin in Claude Code en installeer tools, deliverables en dossync uit de marketplaces e3-shared en e3-dossync. Sluit Claude daarna volledig af en open het opnieuw, zodat de nieuwe skills laden.",
+      "wie": "jij"
+    },
+    {
+      "id": "A4",
+      "flow": "basis",
+      "titel": "Connectors",
+      "soort": "claude",
+      "geldt": "altijd",
+      "controle": "Per connector één lichte oproep en enkel het adres: Gmail (search_threads in:sent, 1 resultaat, afzender), Google Calendar (list_calendars: de primaire agenda is {mail} met accessRole owner), Google Drive (search_files op de root, eigenaar). Granola enkel als de persoon Granola gebruikt (get_account_info). Toon nooit inhoud.",
+      "noteer": "connector.<naam>",
+      "gebruiker": "Verbind {connector} in claude.ai (Instellingen › Connectors) en kies bij Google het account {mail}.",
+      "wie": "jij"
+    },
+    {
+      "id": "A5",
+      "flow": "basis",
+      "titel": "Rechten op de drives",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "rechten",
+      "actie": "Een testbestand schrijven en meteen wissen in Dossync › inbox en Dossync › opvang; enkel lezen op Framework en de klantendrive",
+      "gebruiker": "Vraag {beheerder} de rol Bijdrager op E3 - Finance voor {mail}.",
+      "wie": "beheerder"
+    },
+    {
+      "id": "A14",
+      "flow": "basis",
+      "titel": "Mappen",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "mappen",
+      "actie": "Nakijken dat Dossync › inbox, inbox › ruw, opvang en opvang › runs op E3 - Finance bestaan en My Drive › Claude workspace (je werkmap) aanmaken. My Drive zelf is de wachtrij van route-queue (TE VERPLAATSEN); de webapp maakt Dossier-sync en _Uit mail zelf aan.",
+      "gebruiker": "Een map op E3 - Finance ontbreekt: vraag {beheerder} ze aan te maken.",
+      "wie": "beheerder"
+    },
+    {
+      "id": "A6",
+      "flow": "basis",
+      "titel": "Profiel",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "profiel",
+      "actie": "~/.claude/e3-shared.json bijwerken (initialen, mailbox, drive, werkmap)",
+      "gebruiker": "",
+      "wie": "wizard"
+    },
+    {
+      "id": "A7",
+      "flow": "basis",
+      "titel": "Fiche in E3CRM",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "e3crm",
+      "gebruiker": "Vraag {beheerder} om je als persoon in E3CRM te zetten als je daar nog niet staat. Start daarna de wizard opnieuw.",
+      "wie": "beheerder",
+      "actie": "Op je persoonsfiche in E3CRM initialen {INI} en werkadres {mail} zetten (team.zet) en nalezen (team.lijst). Zo kennen de verwerker, de E3 Daily en de webapp je."
+    },
+    {
+      "id": "A10",
+      "flow": "basis",
+      "titel": "Eigen E3CRM-sleutel (laptop)",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "sleutel",
+      "actie": "Een eigen laptopsleutel aanvragen bij E3CRM (mail van tools@ naar {mail}); de persoon plakt hem zelf in de terminal met 'wizard.py sleutel'. Daarna werkt Claude Code hier met de eigen sleutel in plaats van de gedeelde beheersleutel.",
+      "gebruiker": "Open de mail 'Je E3CRM-sleutel (laptop)' en voer het commando uit dat de wizard toont; plak de sleutel daar (je ziet hem niet).",
+      "wie": "gebruiker"
+    },
+    {
+      "id": "A11",
+      "flow": "basis",
+      "titel": "Eigen E3CRM-sleutel (cloud)",
+      "soort": "claude",
+      "geldt": "altijd",
+      "controle": "Op claude.ai/code bestaat een persoonlijke omgeving met Network access Limited (script.google.com, script.googleusercontent.com) en de variabelen E3CRM_URL en E3CRM_TOKEN met de cloudsleutel uit de mail 'Je E3CRM-sleutel (cloud)'. Vraag de sleutel aan met 'doe A11'. Noteer ok en de naam van de omgeving. Claude vult de sleutel nooit zelf in.",
+      "actie": "Een cloudsleutel aanvragen (mag enkel lezen, voorstellen doen en correcties melden) en de persoon de omgeving laten maken.",
+      "gebruiker": "Maak de omgeving op claude.ai/code zoals de wizard toont en plak zelf de sleutel uit de mail.",
+      "wie": "gebruiker"
+    },
+    {
+      "id": "A8",
+      "flow": "basis",
+      "titel": "Claude Code op het Team-plan",
+      "soort": "claude",
+      "geldt": "altijd",
+      "controle": "In de desktop-app van Claude Code is de persoon aangemeld met het eigen {mail}-account (niet een privéaccount) op het Team-plan van Equals Three, en een cloudtaak (routine) kan aangemaakt worden. Claude Code zit op elke Team-zetel, ook Standard. Kijk na met 'claude auth status' of Instellingen > Account in de app, en met de schedule-skill of claude.ai/code > Scheduled of Routines aanmaken kan. Noteer ok, adres, plan, zetel (Standard of Premium) en routines (true of false).",
+      "noteer": "claude_code",
+      "gebruiker": "Open de Claude-desktop-app, kies het tabblad Code en meld je aan met {mail} (Team-plan van Equals Three, niet je privéaccount). Lukt het aanmaken van een cloudtaak niet, vraag {beheerder} om Claude Code voor je zetel aan te zetten.",
+      "wie": "jij",
+      "aandacht": "Een Standard-zetel heeft een lagere gebruikslimiet dan een Premium-zetel. Dat is geen blokkade: hou de limiet in de gaten bij zware dagen en meld het als je ertegenaan loopt."
+    },
+    {
+      "id": "A13",
+      "flow": "basis",
+      "titel": "GitHub op claude.ai",
+      "soort": "claude",
+      "geldt": "altijd",
+      "controle": "Op claude.ai/code kan de persoon bij een nieuwe taak de repository EqualsThree-Git/e3-dossync en EqualsThree-Git/e3-finance-skills kiezen (de Claude GitHub-app is gekoppeld aan zijn GitHub-account). Nodig voor de cloudtaken. Kijk na met de schedule-skill (lijst van repositories) of laat het de persoon zien. Noteer ok en de repo's.",
+      "noteer": "github_cloud",
+      "gebruiker": "Open claude.ai/code, kies bij een nieuwe taak de repository en klik 'Connect GitHub'. Meld aan met je eigen GitHub-account en geef de Claude-app toegang. Zie je e3-dossync niet, vraag {beheerder} om de uitnodiging.",
+      "wie": "jij"
+    },
+    {
+      "id": "A9",
+      "flow": "basis",
+      "titel": "Teaminstructies",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "teaminstructies",
+      "actie": "De tekst onder de lijn --- van Framework > 01 Framework > Teaminstructies Claude.md zetten in ~/.claude/CLAUDE.md, tussen de markeringen <!-- E3 teaminstructies begin --> en <!-- E3 teaminstructies einde -->. Bestaat het bestand al, dan wordt enkel dat blok toegevoegd of vervangen en blijft de rest staan.",
+      "gebruiker": "Zorg dat E3 - Finance zichtbaar is in Google Drive voor desktop; de teaminstructies staan in Framework > 01 Framework.",
+      "wie": "jij"
+    },
+    {
+      "id": "M1",
+      "flow": "01",
+      "titel": "Dossync-webapp actief",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "webapp",
+      "actie": "Nagaan of dossync-status.json in je My Drive › Dossier-sync jonger is dan 30 minuten en op jouw initialen staat",
+      "gebruiker": "Open {webapp}, kies {mail}, klik Review permissions › Advanced › Go to Dossync › Allow, en daarna op Dossync activeren in de gele balk.",
+      "wie": "jij"
+    },
+    {
+      "id": "M2",
+      "flow": "01",
+      "titel": "Dossync-cloudtaken",
+      "soort": "taak",
+      "geldt": "altijd",
+      "controle": "Twee routines 'Dossync {INI} ochtend' en 'Dossync {INI} namiddag' op claude.ai, op werkdagen (maandag tot vrijdag) om {uren}, repo e3-dossync, connectors Arx, Gmail, Google Calendar, Google Drive. Eerste run is een proefrun. Omgeving: de persoonlijke omgeving uit A11 (E3CRM-cloudsleutel). Vereist A13 (GitHub op claude.ai).",
+      "noteer": "taak.dossync",
+      "gebruiker": "",
+      "wie": "wizard"
+    },
+    {
+      "id": "BR1",
+      "flow": "briefing",
+      "titel": "Briefing-cloudtaak",
+      "soort": "taak",
+      "geldt": "altijd",
+      "controle": "Routine 'Briefing {INI}' op claude.ai, werkdagen om 7u15 (Brusselse tijd, cron 15 7 * * 1-5), repository EqualsThree-Git/e3-dossync, connectors Google Calendar, Gmail, Google Drive en Arx op {mail}. Prompt: 'Voer /dossync:briefing uit voor {INI}, {mail}, echt.' De eerste run is een proef zonder 'echt': 'Voer /dossync:briefing uit voor {INI}, {mail}.' (die maakt een proefbestand dat de mail van 8u niet leest). Na de proef met goedkeuring van de gebruiker omzetten naar de prompt met 'echt'. Omgeving: de persoonlijke omgeving uit A11 (E3CRM-cloudsleutel). Vereist A13 (GitHub op claude.ai).",
+      "noteer": "taak.briefing",
+      "gebruiker": "",
+      "wie": "wizard"
+    },
+    {
+      "id": "RT1",
+      "flow": "retro",
+      "titel": "Retro-cloudtaak (eigenaar)",
+      "soort": "taak",
+      "geldt": "eigenaar",
+      "controle": "Routine 'Retro' op claude.ai van de eigenaar, op de eerste werkdag van de maand om 8u (Brusselse tijd, cron 0 8 1-3 * 1-5; de prompt zegt dat ze niets doet als vandaag niet de eerste werkdag is), repository EqualsThree-Git/e3-finance-skills, connectors Google Drive en E3CRM-toegang. Prompt: 'Voer /tools:retro uit (voorbereiden) voor de vorige maand. Doe niets als vandaag niet de eerste werkdag van de maand is.' Omgeving: de persoonlijke omgeving uit A11 (E3CRM-cloudsleutel). Vereist A13 (GitHub op claude.ai).",
+      "noteer": "taak.retro",
+      "gebruiker": "",
+      "wie": "wizard"
+    },
+    {
+      "id": "G1",
+      "flow": "03",
+      "titel": "Granola-cloudtaak",
+      "soort": "taak",
+      "geldt": "granola",
+      "controle": "Routine 'Granola-opvang {INI}' op claude.ai, werkdagen elk uur van 8u05 tot 20u05, repository e3-dossync, connectors Granola, Arx en Google Drive. Instructie: 'Granola-opvang voor {INI}. Lees en volg dossync/skills/opvang/granola.md uit de repo e3-dossync, met INI = {INI}.' Omgeving: de persoonlijke omgeving uit A11 (E3CRM-cloudsleutel). Vereist A13 (GitHub op claude.ai).",
+      "noteer": "taak.granola",
+      "gebruiker": "",
+      "wie": "wizard"
+    },
+    {
+      "id": "P1",
+      "flow": "04",
+      "titel": "Plaud aanmelden",
+      "soort": "gebruiker",
+      "geldt": "plaud",
+      "controle": "Token in %USERPROFILE%\\.plaud en Documents\\Plaud aanwezig",
+      "gebruiker": "Meld je in de browser die opengaat aan op het Plaud-account van het toestel en klik Authorize.",
+      "wie": "jij"
+    },
+    {
+      "id": "R1",
+      "flow": "05",
+      "titel": "Lokaal uitschrijven",
+      "soort": "pc",
+      "geldt": "opnemen",
+      "controle": "transcript",
+      "actie": "faster-whisper installeren, de uitvoermap op Documents\\Transcripts zetten (nooit in de brain) en een proefopname van een halve minuut uitschrijven om het tempo te meten",
+      "gebruiker": "Windows vraagt toestemming voor een installatie of blokkeert een bestand (Smart App Control): klik Toestaan.",
+      "wie": "jij"
+    },
+    {
+      "id": "R2",
+      "flow": "05",
+      "titel": "Laptoptaak opnames",
+      "soort": "taak",
+      "geldt": "opnemen",
+      "controle": "Geplande taak in Claude Desktop 'Dossync opnames {INI}', elk uur van 8u tot 20u, prompt uit opvang/geluidsrecorder - taak.md met {INI} en het pad naar de transcript-skill.",
+      "noteer": "taak.laptop",
+      "gebruiker": "Laat de laptop aan tijdens kantooruren; de taak draait enkel als hij aan staat.",
+      "wie": "wizard"
+    },
+    {
+      "id": "T1",
+      "flow": "06",
+      "titel": "Memo vanaf de gsm",
+      "soort": "gebruiker",
+      "geldt": "iphone",
+      "controle": "Een bestand met 'TEST memo {INI}' in de naam verschijnt binnen tien minuten in Dossync › inbox, met {mail} als eigenaar",
+      "gebruiker": "Zet op je iPhone de Google Drive-app, aangemeld met {mail}. Dicteer in Notities één zin: 'TEST memo {INI}, dit is een test.' en deel de notitie naar de Drive-app, map E3 - Finance › Dossync › inbox.",
+      "wie": "jij"
+    },
+    {
+      "id": "W1",
+      "flow": "07",
+      "titel": "WhatsApp-lezer koppelen",
+      "soort": "pc",
+      "geldt": "whatsapp",
+      "controle": "whatsapp",
+      "actie": "Playwright installeren (met de geïnstalleerde Chrome), de lezer koppelen als apart apparaat met een QR-code in het browserpaneel, en wachten tot de lijst Equals Three binnen is",
+      "gebruiker": "Maak in WhatsApp een lijst 'Equals Three' met je werkchats (interne chats, klantchats). Scan daarna de QR-code: WhatsApp > Gekoppelde apparaten > Apparaat koppelen. Geef het nieuwe apparaat de naam 'E3 CRM-lezer - {INI} laptop'.",
+      "wie": "jij"
+    },
+    {
+      "id": "W2",
+      "flow": "07",
+      "titel": "WhatsApp-sweep",
+      "soort": "taak",
+      "geldt": "whatsapp",
+      "controle": "Windows-taak 'E3 WhatsApp-sweep {INI}', werkdagen elk uur van 8u10 tot 20u10, zonder model, verborgen en op lage prioriteit: pythonw %LOCALAPPDATA%\\E3\\whatsapp-sweep.py (starter die bij elke run de nieuwste whatsapp-skill neemt). Enkel als de laptop aan staat en de gebruiker aangemeld is.",
+      "noteer": "taak.whatsapp",
+      "gebruiker": "Laat de laptop aan tijdens kantooruren; de sweep draait enkel als hij aan staat.",
+      "wie": "wizard"
+    },
+    {
+      "id": "F1",
+      "flow": "09",
+      "titel": "Foto vanaf de gsm",
+      "soort": "gebruiker",
+      "geldt": "iphone",
+      "controle": "Een bestand met 'TEST kaartje {INI}' in de naam verschijnt binnen tien minuten in Dossync › inbox, met {mail} als eigenaar",
+      "gebruiker": "Open de Drive-app › Gedeelde drives › E3 - Finance › Dossync › inbox › plus › Scannen. Scan je eigen visitekaartje en bewaar het als 'TEST kaartje {INI}'.",
+      "wie": "jij"
+    },
+    {
+      "id": "B1",
+      "flow": "10",
+      "titel": "Bijlagen uit Gmail",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "bijlagen",
+      "actie": "Nagaan of _Uit mail/bijlagen.json in je My Drive de laatste 30 minuten bijgewerkt is (tussen 6u en 22u)",
+      "gebruiker": "Open {webapp} en klik opnieuw op Dossync activeren; sta ook Gmail lezen toe.",
+      "wie": "jij"
+    },
+    {
+      "id": "K1",
+      "flow": "12",
+      "titel": "Publieke bronnen bereikbaar",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "publiek",
+      "actie": "KBO, NBB en Staatsblad openen vanaf deze laptop",
+      "gebruiker": "Blijft een site onbereikbaar, probeer het later opnieuw of zonder VPN.",
+      "wie": "jij"
+    },
+    {
+      "id": "D2",
+      "flow": "daily",
+      "titel": "Ontvanger van de E3 Daily-mail",
+      "soort": "beheerder",
+      "geldt": "altijd",
+      "controle": "De wizard kan dit niet zien: de initialen staan in de Script Property DAILY_ONTVANGERS van E3CRM op tools@. Wie het zette, noteert het met noteer daily_ontvanger.",
+      "noteer": "daily_ontvanger",
+      "gebruiker": "Zet {INI} in de Script Property DAILY_ONTVANGERS van E3CRM (Apps Script › Projectinstellingen), gescheiden door ;.",
+      "wie": "tools@"
+    },
+    {
+      "id": "E1",
+      "flow": "13",
+      "titel": "E3 Tools-app op de gsm",
+      "soort": "gebruiker",
+      "geldt": "altijd",
+      "controle": "De eigen Apps Script-koppeling 'E3 Tools' bestaat in je Google-account (script.google.com) en de app op de gsm toont 'verbonden'. Handleiding in de repo E3-toolsapp (docs/installatie-iphone.md, installatie-android.md).",
+      "gebruiker": "Volg docs/installatie-iphone.md van de E3 Tools-app (stap 1 en 2 op de laptop, stap 3 op de gsm).",
+      "wie": "jij"
+    }
+  ],
+  "flows": [
+    {
+      "id": "01",
+      "naam": "Mail",
+      "stappen": [
+        "M1",
+        "M2"
+      ],
+      "vrijgave": "vrij",
+      "test": "De proefrun van 'Dossync {INI} ochtend' schreef een uit-bestand met who = {INI} en run.mailbox = {mail}, of dossync-status.json toont een laatsteRun van vandaag."
+    },
+    {
+      "id": "02",
+      "naam": "Agenda",
+      "stappen": [
+        "M2"
+      ],
+      "vrijgave": "vrij",
+      "connector": "calendar",
+      "test": "De Calendar-connector leest {mail} als eigenaar met titels en gasten, en de proefrun meldt agenda.calendar = ok."
+    },
+    {
+      "id": "03",
+      "naam": "Granola",
+      "stappen": [
+        "G1"
+      ],
+      "vrijgave": "proef",
+      "connector": "granola",
+      "reden": "Loopt sinds 26/11 bij een eerste gebruiker; na een week tellen (vanaf 03/12) op vrij zetten.",
+      "test": "Granola-connector op {mail}; search_meetings van de laatste zeven dagen geeft een aantal (enkel metadata); na de eerste run een bestand '<YYMMDD HHMM> granola {INI}.json' in Dossync/opvang/runs met fout = null."
+    },
+    {
+      "id": "04",
+      "naam": "Plaud",
+      "stappen": [
+        "P1"
+      ],
+      "vrijgave": "dicht",
+      "reden": "Het ophaalscript van flow 04 bestaat nog niet; de laptoptaak verwerkt Plaud pas als Documents\\Plaud gevuld wordt.",
+      "test": "Token aanwezig en de Plaud-connector geeft get_current_user."
+    },
+    {
+      "id": "05",
+      "naam": "Geluidsrecorder",
+      "stappen": [
+        "R1",
+        "R2"
+      ],
+      "vrijgave": "proef",
+      "reden": "De laptoptaak is nog nergens gedraaid en de transcript-skill met inbox.py is nog niet uitgerold.",
+      "test": "Proefopname uitgeschreven met de gemeten snelheid; transcript-skill heeft inbox.py; Documents\\Sound Recordings en Documents\\Transcripts bestaan."
+    },
+    {
+      "id": "06",
+      "naam": "Memo's",
+      "stappen": [
+        "T1"
+      ],
+      "vrijgave": "proef",
+      "reden": "De iPhone-route wordt getest; welke deelweg werkt, volgt uit die test.",
+      "test": "TEST memo {INI} staat in de inbox met {mail} als eigenaar."
+    },
+    {
+      "id": "07",
+      "naam": "WhatsApp",
+      "stappen": [
+        "W1",
+        "W2"
+      ],
+      "vrijgave": "proef",
+      "test": "Lezer gekoppeld en lijst Equals Three binnen; een droge sweep geeft per chat met nieuwe berichten een item.",
+      "reden": "De lezer en de uurlijkse sweep draaien sinds 26/11 bij een eerste gebruiker; vrij na een week zonder fouten in de runlog."
+    },
+    {
+      "id": "09",
+      "naam": "Foto's",
+      "stappen": [
+        "F1"
+      ],
+      "vrijgave": "proef",
+      "reden": "De iPhone-route wordt getest.",
+      "test": "TEST kaartje {INI} staat in de inbox met {mail} als eigenaar."
+    },
+    {
+      "id": "10",
+      "naam": "Bijlagen",
+      "stappen": [
+        "M1",
+        "B1"
+      ],
+      "vrijgave": "vrij",
+      "test": "_Uit mail/bijlagen.json is de laatste 30 minuten bijgewerkt."
+    },
+    {
+      "id": "11",
+      "naam": "Links en datarooms",
+      "stappen": [
+        "M1",
+        "M2"
+      ],
+      "vrijgave": "vrij",
+      "volgt": "01",
+      "test": "Loopt mee in de mailrun en de webapp: dezelfde test als Mail."
+    },
+    {
+      "id": "briefing",
+      "naam": "Ochtendbriefing",
+      "stappen": [
+        "BR1"
+      ],
+      "vrijgave": "proef",
+      "connector": "calendar",
+      "reden": "dossync:briefing is nieuw; eerst een proefrun zonder 'echt', daarna omzetten.",
+      "test": "De proefrun van 'Briefing {INI}' schreef een proefbestand in Dossync > briefing met {INI} en {mail}; na het omzetten staat er om 7u15 een bestand '<YYMMDD> {INI}.json'."
+    },
+    {
+      "id": "12",
+      "naam": "Publieke bronnen",
+      "stappen": [
+        "K1"
+      ],
+      "vrijgave": "vrij",
+      "test": "kbopub.economie.fgov.be, consult.cbso.nbb.be en www.ejustice.just.fgov.be antwoorden vanaf deze laptop."
+    },
+    {
+      "id": "daily",
+      "naam": "E3 Daily",
+      "stappen": [
+        "A7",
+        "D2"
+      ],
+      "vrijgave": "dicht",
+      "reden": "De E3 Daily-pagina en de mail van 8u staan nog niet live in E3CRM.",
+      "test": "De E3CRM-fiche heeft initialen en werkadres; na de eerste werkdag om 8u een mail 'E3 Daily' van tools@ in je inbox (Gmail, enkel de onderwerpregel)."
+    },
+    {
+      "id": "retro",
+      "naam": "Maandelijkse retro",
+      "stappen": [
+        "RT1"
+      ],
+      "vrijgave": "dicht",
+      "reden": "E3CRM kent de acties correctie.maak, correctie.lijst en correctie.zet nog niet; de retro draait pas na de volgende deploy.",
+      "test": "De routine 'Retro' bestaat bij de eigenaar en een proefrun van /tools:retro (voorbereiden) geeft tellers uit E3CRM."
+    },
+    {
+      "id": "13",
+      "naam": "E3 Tools-app",
+      "stappen": [
+        "E1"
+      ],
+      "vrijgave": "dicht",
+      "reden": "De iPhone-app gaat via TestFlight en dat vraagt een Apple Developer-account van E3; Android vraagt een apk die nog niet zonder hulp te installeren is.",
+      "test": "De app toont 'verbonden' en een testnotitie landt in je My Drive › E3 Tools › Inbox."
+    }
+  ],
+  "paden_noot": "e3crm_toegang: gedeelde kopie van de E3CRM-toegang (url en token) op een drive met enkel het team en tools@. De wizard neemt ze stil over in ~/.claude/e3crm.json, ook na een rotatie, en toont of logt de inhoud nooit. config: de interne configuratie (personen, webapp, geweigerde adressen, uren), niet in deze publieke repo.",
+  "beheerder": "de beheerder van de gedeelde drive E3 - Finance"
+}
