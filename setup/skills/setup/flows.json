@@ -1,5 +1,5 @@
 {
-  "versie": "2.1",
+  "versie": "2.2",
   "bijgewerkt": "2026-11-27",
   "uitleg": "Enige plek waar staat wat de wizard aansluit. Een flow die rijp is, zet je hier van 'proef' of 'dicht' op 'vrij'; de wizard zelf verandert dan niet. vrijgave: vrij = alles aansluiten en inplannen, proef = voorbereiden en testen maar geen taak inplannen, dicht = enkel tonen wat ontbreekt. Namen, adressen en de webapp staan niet hier (de repo is publiek) maar in paden.config op de shared drive; de wizard voegt die samen.",
   "domein": "equalsthree.be",
@@ -18,7 +18,9 @@
     "opvang_runs": "E3 - Finance/Dossync/opvang/runs",
     "e3crm_toegang": "E3 - Finance/E3CRM/_toegang/e3crm.json",
     "teaminstructies": "E3 - Finance/Framework/01 Framework/Teaminstructies Claude.md",
-    "config": "E3 - Finance/Framework/10 Flows/setup-config.json"
+    "config": "E3 - Finance/Framework/10 Flows/setup-config.json",
+    "dienstregeling": "E3 - Finance/Dossync/dienstregeling.json",
+    "regels": "E3 - Finance/Dossync/regels.json"
   },
   "stappen": [
     {
@@ -105,7 +107,7 @@
       "soort": "pc",
       "geldt": "altijd",
       "controle": "mappen",
-      "actie": "Nakijken dat Dossync › inbox, inbox › ruw, opvang en opvang › runs op E3 - Finance bestaan en My Drive › Claude workspace (je werkmap) aanmaken. My Drive zelf is de wachtrij van route-queue (TE VERPLAATSEN); de webapp maakt Dossier-sync en _Uit mail zelf aan.",
+      "actie": "Nakijken dat Dossync › inbox, inbox › ruw, opvang en opvang › runs op E3 - Finance bestaan en My Drive › Claude workspace (je werkmap) aanmaken. My Drive zelf is de wachtrij van route-queue (TE VERPLAATSEN); de webapp maakt Dossier-sync en _Uit mail zelf aan, en My Drive › E3Brain persoonlijk › import gsm aanmaken (wat de gsm met de Drive-app deelt; de wachter leegt ze).",
       "gebruiker": "Een map op E3 - Finance ontbreekt: vraag {beheerder} ze aan te maken.",
       "wie": "beheerder"
     },
@@ -234,46 +236,47 @@
     {
       "id": "G1",
       "flow": "03",
-      "titel": "Granola-cloudtaak",
+      "titel": "Granola in E3 run",
       "soort": "taak",
       "geldt": "granola",
-      "controle": "Routine 'Granola-opvang {INI}' op claude.ai, werkdagen elk uur van 8u05 tot 20u05, repository e3-dossync, connectors Granola, Arx en Google Drive. Instructie: 'Granola-opvang voor {INI}. Lees en volg dossync/skills/opvang/granola.md uit de repo e3-dossync, met INI = {INI}.' Omgeving: de persoonlijke omgeving uit A11 (E3CRM-cloudsleutel). Vereist A13 (GitHub op claude.ai).",
-      "noteer": "taak.granola",
+      "controle": "Granola wordt niet meer elk uur in de cloud opgehaald: 'E3 run {INI}' (V1) haalt het op werkdagen om 7u20 en 12u50 op de laptop op met granola.py (claude -p met Haiku en de Granola-connector op {mail}), vlak voor de verwerker; de notities komen in de lokale inbox Documents\\E3 Inbox. Dezelfde taak als V1. Een oude routine 'Granola-opvang {INI}' op claude.ai mag weg na een ja.",
+      "noteer": "taak.run",
+      "nakijken": "run",
       "gebruiker": "",
       "wie": "wizard"
     },
     {
       "id": "P1",
       "flow": "04",
-      "titel": "Plaud op de ophaal-laptop",
+      "titel": "Plaud in de ketting",
       "soort": "pc",
-      "geldt": "plaud_ophaler",
+      "geldt": "plaud_ketting",
       "controle": "plaud",
-      "actie": "De Plaud-connector toevoegen voor alle sessies (claude mcp add -s user plaud -- npx -y @plaud-ai/mcp@latest), Documents\\Opnames E3 aanmaken (daarin haalt Plaud op) en na de aanmelding plaud.py test draaien (moet 'Plaud-token werkt' geven). Enkel op de laptop van {ophaler}: één gedeeld account, twee ophalers halen alles dubbel binnen.",
+      "actie": "De Plaud-connector toevoegen voor alle sessies (claude mcp add -s user plaud -- npx -y @plaud-ai/mcp@latest), Documents\\Opnames E3 aanmaken (daarin haalt Plaud op) en na de aanmelding plaud.py test draaien (moet 'Plaud-token werkt' geven). Op elke laptop in de Plaud-ketting uit Dossync › regels.json (nu {ketting}): de toewijzing van dossync zorgt dat een opname nooit dubbel binnenkomt; enkel de vrager krijgt de vraag.",
       "gebruiker": "Start een nieuwe sessie in Claude Code, zodat de Plaud-connector laadt, en zeg 'verder met de setup'. Claude opent dan de aanmelding van Plaud: meld je in de browser aan op het gedeelde Plaud-account en klik Authorize.",
       "wie": "jij"
     },
     {
       "id": "R1",
-      "flow": "05",
+      "flow": "dienst",
       "titel": "Lokaal uitschrijven",
       "soort": "pc",
-      "geldt": "opnames",
+      "geldt": "altijd",
       "controle": "transcript",
-      "actie": "tools:transcript instellen met setup.py (Python-pakketten, faster-whisper, het model, GPU of CPU gemeten), Documents\\Opnames E3 (de opnamemap) en Documents\\Transcripts aanmaken (transcripts nooit in de brain) en een proefopname van een halve minuut uitschrijven om het tempo te meten. De Geluidsrecorder hoeft niet omgezet te worden: de opvang verhuist elke opname uit Documents\\Sound Recordings naar de opnamemap.",
+      "actie": "tools:transcript instellen met setup.py (Python-pakketten, faster-whisper, het model, GPU of CPU gemeten), Documents\\Opnames E3 (de opnamemap) en Documents\\Transcripts aanmaken (transcripts nooit in de brain) en een proefopname van een halve minuut uitschrijven om het tempo te meten. Op elke laptop: de wachter schrijft uit wat binnenkomt (Geluidsrecorder, gsm-map, Plaud, WhatsApp-spraak).",
       "gebruiker": "Windows vraagt toestemming voor een installatie of blokkeert een bestand (Smart App Control): klik Toestaan.",
       "wie": "jij"
     },
     {
       "id": "R2",
-      "flow": "05",
-      "titel": "Opnames-taken",
+      "flow": "dienst",
+      "titel": "Wachter",
       "soort": "taak",
-      "geldt": "opnames",
-      "controle": "Twee Windows-taken via plan-opnames.ps1 van dossync, enkel als de gebruiker aangemeld is: 'E3 Dossync opnames wachter {INI}' (start bij het aanmelden, kijkt elke 20 s in Documents\\Opnames E3 en Sound Recordings en toont per nieuwe opname van meer dan 10 s een pop-up: Transcriberen, Wacht op run, Negeer; na 15 s zonder keuze Wacht op run) en 'E3 Dossync opnames {INI}' (elk uur van 8u25 tot 20u25: Plaud ophalen op de ophaal-laptop, wat wacht op de run, leidraden, uitgeschreven of genegeerde audio na 30 dagen naar de Prullenbak). Het transcript gaat naar de lokale inbox Documents\\E3 Inbox\\inbox, nooit naar de gedeelde drive; geen samenvatting, geen model. Vereist tools 2.25 of later, dossync 2.6 of later en R1 ok. Pas inplannen na een ja.",
+      "geldt": "altijd",
+      "controle": "Windows-taak 'E3 Dossync opnames wachter {INI}' (dienstregeling, ritme 1) via plan-opnames.ps1 -Ini {INI} -Sinds <vandaag>, bij het aanmelden en om 8u als vangnet, enkel als de gebruiker aangemeld is. Elke 20 s Documents\\Opnames E3 (de Geluidsrecorder verhuist er vanzelf naartoe) en de gsm-map, om de 5 min Plaud, elk uur de uurrun; een pop-up per nieuwe opname van meer dan 10 s (Transcriberen, Wacht op run, Negeer; na 15 s Wacht op run); na het uitschrijven de samenvatting met claude -p (Sonnet); houdt WhatsApp-live en Later in leven. Alles naar de lokale inbox Documents\\E3 Inbox\\inbox. De oude uurtaak 'E3 Dossync opnames {INI}' verdwijnt. Vereist tools 2.27, dossync 2.11, R1 ok en claude -p aangemeld op {mail}. Pas inplannen na een ja.",
       "noteer": "taak.opnames",
-      "nakijken": "opnames_taken",
-      "gebruiker": "Laat de laptop aan tijdens kantooruren. Komt er een pop-up bij een nieuwe opname: Transcriberen, Wacht op run (ook als je niets kiest) of Negeer.",
+      "nakijken": "wachter",
+      "gebruiker": "Laat de laptop aan tijdens kantooruren. Komt er een pop-up bij een nieuwe opname: Transcriberen, Wacht op run (ook als je niets kiest) of Negeer. Vraagt de wizard het: voer in een terminal 'claude auth login' uit en meld je aan met {mail}.",
       "wie": "wizard"
     },
     {
@@ -282,19 +285,19 @@
       "titel": "Proefopname",
       "soort": "gebruiker",
       "geldt": "opnemen",
-      "controle": "Binnen een kwartier staat in de lokale inbox Documents\\E3 Inbox\\inbox een item met 'TEST proef {INI}' in de naam, met in de kop 'samenvatting: nog niet' en een kop '## Transcript'.",
+      "controle": "Binnen een kwartier staat in de lokale inbox Documents\\E3 Inbox\\inbox een item met 'TEST proef {INI}' in de naam en een kop '## Transcript'; enkele minuten later draagt de kop 'samenvatting: opvang' en staat er een sectie '## Samenvatting' (claude -p werkt).",
       "gebruiker": "Neem met de app Geluidsrecorder iets langer dan 10 seconden op. Wijzig meteen na het stoppen (binnen een minuut) de naam: rechtermuisknop op de opname › Naam wijzigen › 'TEST proef {INI}'. Binnen twee minuten komt een pop-up: klik binnen 15 seconden op Transcriberen.",
       "wie": "jij"
     },
     {
       "id": "V1",
-      "flow": "05",
-      "titel": "Eigen verwerker",
+      "flow": "dienst",
+      "titel": "E3 run (Granola en verwerker)",
       "soort": "taak",
-      "geldt": "lokale_inbox",
-      "controle": "Windows-taak 'E3 Dossync verwerker' via plan-verwerker.ps1 van dossync, elke dag om 7u20 en 12u50: /dossync:verwerker met claude -p leest de lokale inbox Documents\\E3 Inbox\\inbox (opnames, WhatsApp-chats, leidraden) en de gedeelde Dossync › inbox, en zet enkel wat relevant is als voorstel in E3 Daily. Persoonlijke bronnen komen nooit op de gedeelde drive, dus enkel een verwerker op deze laptop ziet ze. Vereist dossync 2.6 of later, E3CRM-toegang (A7) en claude -p aangemeld op {mail}. Pas inplannen na een ja.",
-      "noteer": "taak.verwerker",
-      "nakijken": "verwerker_taak",
+      "geldt": "altijd",
+      "controle": "Windows-taak 'E3 run {INI}' (dienstregeling, ritme 2) via plan-verwerker.ps1 -Ini {INI} -Uren <uit de dienstregeling>, op werkdagen om 7u20 en 12u50: eerst granola.py (Granola ophalen, claude -p met Haiku), dan /dossync:verwerker met claude -p: leest de lokale inbox Documents\\E3 Inbox\\inbox en de gedeelde Dossync › inbox en zet enkel wat relevant is in E3 Daily. De oude taak 'E3 Dossync verwerker' verdwijnt. Vereist dossync 2.11, E3CRM-toegang (A7) en claude -p aangemeld op {mail}. Pas inplannen na een ja.",
+      "noteer": "taak.run",
+      "nakijken": "run",
       "gebruiker": "Laat de laptop aan tijdens kantooruren. Vraagt de wizard het: voer in een terminal 'claude auth login' uit en meld je aan met {mail}.",
       "wie": "wizard"
     },
@@ -322,12 +325,13 @@
     {
       "id": "W2",
       "flow": "07",
-      "titel": "WhatsApp-sweep",
+      "titel": "WhatsApp-live",
       "soort": "taak",
       "geldt": "whatsapp",
-      "controle": "Windows-taak 'E3 WhatsApp-sweep {INI}', werkdagen elk uur van 8u10 tot 20u10, zonder model, verborgen en op lage prioriteit: pythonw %LOCALAPPDATA%\\E3\\whatsapp-sweep.py (starter die bij elke run de nieuwste whatsapp-skill neemt). Enkel als de laptop aan staat en de gebruiker aangemeld is.",
+      "controle": "Windows-taak 'E3 WhatsApp-live {INI}' (dienstregeling, ritme 1) bij het aanmelden, zonder model, verborgen: pythonw %LOCALAPPDATA%\\E3\\whatsapp-live.py (starter die de nieuwste whatsapp-skill neemt) draait wa_live.py live. Leest de chats in de lijst Equals Three uit het geheugen van WhatsApp Web en opent nooit een chat; items in de lokale inbox Documents\\E3 Inbox. De wachter houdt hem in leven. De oude 'E3 WhatsApp-sweep {INI}' verdwijnt. Vereist W1 ok en tools 2.27.",
       "noteer": "taak.whatsapp",
-      "gebruiker": "Laat de laptop aan tijdens kantooruren; de sweep draait enkel als hij aan staat.",
+      "nakijken": "whatsapp-live",
+      "gebruiker": "Laat de laptop aan tijdens kantooruren; WhatsApp-live draait enkel als je aangemeld bent.",
       "wie": "wizard"
     },
     {
@@ -372,6 +376,17 @@
       "noteer": "daily_ontvanger",
       "gebruiker": "Zet {INI} in de Script Property DAILY_ONTVANGERS van E3CRM (Apps Script › Projectinstellingen), gescheiden door ;.",
       "wie": "tools@"
+    },
+    {
+      "id": "H1",
+      "flow": "dienst",
+      "titel": "Gezondheid",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "gezondheid",
+      "actie": "Na de eerste wachterronde Dossync › gezondheid › {INI}.json lezen en gezondheid.py controle --ini {INI} draaien (dossync/skills/dossync/scripts): elke laptoptaak laat na elke run een regel na (taak, tijd, uitkomst, nooit inhoud) en de controle legt die naast de dienstregeling.",
+      "gebruiker": "",
+      "wie": "wizard"
     }
   ],
   "flows": [
@@ -396,6 +411,19 @@
       "test": "De Calendar-connector leest {mail} als eigenaar met titels en gasten, en de proefrun meldt agenda.calendar = ok."
     },
     {
+      "id": "dienst",
+      "naam": "Dienstregeling",
+      "stappen": [
+        "R1",
+        "R2",
+        "V1",
+        "H1"
+      ],
+      "vrijgave": "proef",
+      "reden": "De dienstregeling (wachter per laptop, E3 run) is van 27/11; eerst een week bij een eerste gebruiker zonder stille taken in Dossync › gezondheid.",
+      "test": "De wachter en E3 run staan in Taakplanner zonder de oude taken; na de eerste wachterronde staat Dossync › gezondheid › {INI}.json er en geeft gezondheid.py controle --ini {INI} 'alles draaide'."
+    },
+    {
       "id": "03",
       "naam": "Granola",
       "stappen": [
@@ -403,33 +431,28 @@
       ],
       "vrijgave": "proef",
       "connector": "granola",
-      "reden": "Loopt sinds 26/11 bij een eerste gebruiker; na een week tellen (vanaf 03/12) op vrij zetten.",
-      "test": "Granola-connector op {mail}; search_meetings van de laatste zeven dagen geeft een aantal (enkel metadata); na de eerste run een bestand '<YYMMDD HHMM> granola {INI}.json' in Dossync/opvang/runs met fout = null."
+      "reden": "Granola gaat sinds 27/11 in E3 run (granola.py op de laptop, vlak voor de verwerker); de uurlijkse cloudtaak valt weg.",
+      "test": "Granola-connector op {mail} (A4); na de eerste E3 run meldt Dossync › gezondheid › {INI}.json run = ok en staan de Granola-notities als item in de lokale inbox Documents\\E3 Inbox."
     },
     {
       "id": "04",
       "naam": "Plaud",
       "stappen": [
-        "P1",
-        "R2",
-        "V1"
+        "P1"
       ],
       "vrijgave": "proef",
-      "reden": "plaud.py haalt op via de Plaud Open API in Documents\\Opnames E3 (getest op het echte account, 27/11); de opnames-taken en de eigen verwerker staan nog nergens via de wizard ingepland.",
-      "test": "Op de ophaal-laptop: Plaud-connector in Claude Code, token in %USERPROFILE%\\.plaud\\tokens-mcp.json, plaud.py test geeft 'Plaud-token werkt', Documents\\Opnames E3 bestaat."
+      "reden": "plaud.py haalt op via de Plaud Open API en de toewijzing (vrager, Delegeer, ketting) loopt sinds 27/11; de wachter staat nog nergens via de wizard ingepland.",
+      "test": "Op elke laptop in de ketting: Plaud-connector in Claude Code, token in %USERPROFILE%\\.plaud\\tokens-mcp.json, plaud.py test geeft 'Plaud-token werkt'."
     },
     {
       "id": "05",
       "naam": "Geluidsrecorder en leidraden",
       "stappen": [
-        "R1",
-        "R2",
-        "R3",
-        "V1"
+        "R3"
       ],
       "vrijgave": "proef",
-      "reden": "De opnames-taken van dossync 2.6 (wachter en uurrun) en de eigen verwerker staan nog nergens via de wizard ingepland.",
-      "test": "Proefopname uitgeschreven met de gemeten snelheid; transcript-skill heeft inbox.py; Documents\\Opnames E3 en Documents\\Transcripts bestaan; wachter, uurrun en eigen verwerker ingepland; na de proefopname een item 'TEST proef {INI}' met een transcript in de lokale inbox Documents\\E3 Inbox."
+      "reden": "Hangt aan de wachter (flow Dienstregeling), die nog nergens via de wizard ingepland is.",
+      "test": "Na de proefopname een item 'TEST proef {INI}' met transcript en samenvatting in de lokale inbox Documents\\E3 Inbox."
     },
     {
       "id": "06",
@@ -446,12 +469,11 @@
       "naam": "WhatsApp",
       "stappen": [
         "W1",
-        "W2",
-        "V1"
+        "W2"
       ],
       "vrijgave": "proef",
-      "test": "Lezer gekoppeld en lijst Equals Three binnen; een droge sweep geeft per chat met nieuwe berichten een item; de chats komen in de lokale inbox Documents\\E3 Inbox en de eigen verwerker leest ze.",
-      "reden": "De lezer en de uurlijkse sweep draaien sinds 26/11 bij een eerste gebruiker; vrij na een week zonder fouten in de runlog."
+      "test": "Lezer gekoppeld en lijst Equals Three binnen; 'E3 WhatsApp-live {INI}' draait en wa_live.py eenmaal --ini {INI} --droog geeft per chat met nieuwe berichten een item; de items komen in de lokale inbox Documents\\E3 Inbox.",
+      "reden": "WhatsApp-live vervangt sinds 27/11 de uurlijkse sweep; vrij na een week zonder fouten in Dossync › gezondheid."
     },
     {
       "id": "09",
@@ -526,6 +548,6 @@
       "test": "De routine 'Retro' bestaat bij de eigenaar en een proefrun van /tools:retro (voorbereiden) geeft tellers uit E3CRM."
     }
   ],
-  "paden_noot": "e3crm_toegang: gedeelde kopie van de E3CRM-toegang (url en token) op een drive met enkel het team en tools@. De wizard neemt ze stil over in ~/.claude/e3crm.json, ook na een rotatie, en toont of logt de inhoud nooit. config: de interne configuratie (personen, webapp, geweigerde adressen, uren), niet in deze publieke repo. plaud_ophaler (in de config): de initialen van de enige laptop die Plaud ophaalt. De lokale inbox (Documents\\E3 Inbox) staat niet in paden: ze ligt op de laptop, niet op de drive.",
+  "paden_noot": "e3crm_toegang: gedeelde kopie van de E3CRM-toegang (url en token) op een drive met enkel het team en tools@. De wizard neemt ze stil over in ~/.claude/e3crm.json, ook na een rotatie, en toont of logt de inhoud nooit. config: de interne configuratie (personen, webapp, geweigerde adressen, uren), niet in deze publieke repo. dienstregeling: naam en uren van de laptoptaken (de wizard plant eruit). regels: de Plaud-ketting (taak_opnemen.ketting, met plaud.vrager vooraan). De lokale inbox (Documents\\E3 Inbox) staat niet in paden: ze ligt op de laptop, niet op de drive.",
   "beheerder": "de beheerder van de gedeelde drive E3 - Finance"
 }

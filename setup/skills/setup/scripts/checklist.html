@@ -97,9 +97,7 @@ function geldt(g) {
   if (g === "altijd") return true;
   if (g === "eigenaar") return A.eigenaar === true;
   if (g === "iphone" || g === "android") return A.toestel.toLowerCase() === g;
-  if (g === "plaud_ophaler") return !!D.plaud_ophaler && $("ini").value.trim().toUpperCase() === D.plaud_ophaler;
-  if (g === "opnames") return A.opnemen === true || geldt("plaud_ophaler");
-  if (g === "lokale_inbox") return geldt("opnames") || A.whatsapp === true;
+  if (g === "plaud_ketting") return (D.plaud_ketting || []).includes($("ini").value.trim().toUpperCase());
   return A[g] === true;
 }
 
