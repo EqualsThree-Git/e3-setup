@@ -57,11 +57,10 @@ const V = [
   ["eigenaar", "Beheert het framework", [[true, "Ja"], [false, "Nee"]]],
   ["toestel", "Gsm", [["iPhone", "iPhone"], ["Android", "Android"]]],
   ["granola", "Online meetings opnemen met Granola", [[true, "Ja"], [false, "Nee"]]],
-  ["plaud", "Plaud-toestel", [[true, "Ja"], [false, "Nee"]]],
   ["opnemen", "Gesprekken aan tafel opnemen met de laptop", [[true, "Ja"], [false, "Nee"]]],
   ["whatsapp", "Werkchats uit WhatsApp laten meelezen", [[true, "Ja"], [false, "Nee"]]],
 ];
-const A = {rol: "consultant", eigenaar: false, toestel: "iPhone", granola: true, plaud: false, opnemen: false, whatsapp: true};
+const A = {rol: "consultant", eigenaar: false, toestel: "iPhone", granola: true, opnemen: false, whatsapp: true};
 const vooraf = (D && D.vooraf) || {};
 for (const [k] of V) if (k in vooraf && vooraf[k] !== null) A[k] = vooraf[k];
 const $ = id => document.getElementById(id);
@@ -75,7 +74,8 @@ function vul() {
   const p = (D.personen || []).find(x => (x.mail || "").toLowerCase() === m);
   if (p) { if (!$("naam").value) $("naam").value = p.naam || ""; if (!$("ini").value) $("ini").value = p.ini || ""; }
 }
-$("mail").addEventListener("change", vul);
+$("mail").addEventListener("change", () => { vul(); flows(); });
+$("ini").addEventListener("input", flows);
 
 function vragen() {
   $("vragen").innerHTML = "";
@@ -97,6 +97,9 @@ function geldt(g) {
   if (g === "altijd") return true;
   if (g === "eigenaar") return A.eigenaar === true;
   if (g === "iphone" || g === "android") return A.toestel.toLowerCase() === g;
+  if (g === "plaud_ophaler") return !!D.plaud_ophaler && $("ini").value.trim().toUpperCase() === D.plaud_ophaler;
+  if (g === "opnames") return A.opnemen === true || geldt("plaud_ophaler");
+  if (g === "lokale_inbox") return geldt("opnames") || A.whatsapp === true;
   return A[g] === true;
 }
 

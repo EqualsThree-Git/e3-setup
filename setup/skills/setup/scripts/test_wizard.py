@@ -31,6 +31,7 @@ CONFIG = {
         "JDS": {"naam": "Jan De Test", "mail": "jan@equalsthree.be", "toestel": "iPhone", "granola": True, "plaud": True, "opnemen": None,
                 "dossync_uren": ["10:35", "15:35"], "arx_mail": "jan.detest@equalsthree.be", "eigenaar": True, "zetel": "Standard"}},
     "uren_nieuw": [["10:55", "15:55"], ["11:15", "16:15"], ["11:35", "16:35"]],
+    "plaud_ophaler": "RP",
 }
 
 
@@ -48,7 +49,7 @@ def opzet():
     cfg = root / "Shared drives/E3 - Finance/Framework/10 Flows/setup-config.json"
     cfg.parent.mkdir(parents=True)
     cfg.write_text(json.dumps(CONFIG), encoding="utf-8")
-    env = dict(os.environ, E3_TEST_SNEL="1", E3_DRIVE_ROOT=str(root), E3_HOME=str(home), E3_SETUP_DIR=str(home / ".claude" / "e3-setup"))
+    env = dict(os.environ, E3_TEST_SNEL="1", E3_TAKEN="[]", E3_DRIVE_ROOT=str(root), E3_HOME=str(home), E3_SETUP_DIR=str(home / ".claude" / "e3-setup"))
     return t, env
 
 
@@ -126,7 +127,7 @@ check("droge run geeft het rapport als tekst", r["bestanden"] == [] and "Setup J
 
 # 2. Vrijgave en toepasbaarheid
 c = w(env, "controleer", "--ini", "JDS")
-check("Plaud is dicht", punt(c, "P1")["status"] == "dicht")
+check("Plaud in proef, P1 niet voor JDS (niet de ophaler)", punt(c, "P1")["vrijgave"] == "proef" and punt(c, "P1")["status"] == "nvt")
 check("Granola-taak wordt voorbereid, niet ingepland", punt(c, "G1")["status"] == "klaar-te-zetten")
 check("E3CRM-fiche is een laptopstap met eigen controle", punt(c, "A7")["soort"] == "pc")
 check("Geluidsrecorder: eerst vragen of JDS opneemt", "opnemen" in c["vragen"] and punt(c, "R1")["status"] == "vraag")
@@ -389,6 +390,165 @@ st["NC"]["claude_code"] = "{ok:true}"
 (t / "home/.claude/e3-setup/staat.json").write_text(json.dumps(st), encoding="utf-8")
 c = w(env, "controleer")
 check("een oude, onleesbare notitie laat controleer niet vallen", punt(c, "A8")["status"] == "fout" and "onleesbaar" in punt(c, "A8")["detail"])
+
+# 11. Opnames-opvang van dossync 2.6 (P1 Plaud, R1 uitschrijven, R2 wachter en uurrun, R3 proefopname) en V1 eigen verwerker
+env["E3_CLAUDE_STATUS"] = json.dumps({"loggedIn": True, "email": "prive@gmail.com"})
+home = t / "home"
+c = w(env, "controleer", "--ini", "JDS")
+check("P1 Plaud enkel op de ophaal-laptop: niet voor JDS", punt(c, "P1")["status"] == "nvt")
+check("R2 opnames-taken: eerst vragen of JDS opneemt", punt(c, "R2")["status"] == "vraag" and "opnemen" in c["vragen"]
+      and not {"opnames", "lokale_inbox"} & set(c["vragen"]), c["vragen"])
+check("V1 eigen verwerker: eerst vragen", punt(c, "V1")["status"] == "vraag", punt(c, "V1"))
+check("R3 proefopname: eerst vragen", punt(c, "R3")["status"] == "vraag")
+c = w(env, "controleer", "--ini", "RP")
+check("P1 geldt voor de ophaler RP", punt(c, "P1")["status"] == "fout" and "dossync 2.6" in punt(c, "P1")["detail"], punt(c, "P1")["detail"])
+check("R2 voor RP voorbereid, niet ingepland (flow in proef)", punt(c, "R2")["status"] == "klaar-te-zetten", punt(c, "R2"))
+check("R2 noemt plan-opnames.ps1, de wachter, 8u25, 10 s en de lokale inbox", all(x in punt(c, "R2")["actie"] for x in
+      ("plan-opnames.ps1", "8u25", "opnames wachter RP", "Opnames E3", "10 s", "E3 Inbox")), punt(c, "R2")["actie"])
+check("V1 voor RP voorbereid, met plan-verwerker.ps1", punt(c, "V1")["status"] == "klaar-te-zetten" and "plan-verwerker.ps1" in punt(c, "V1")["actie"])
+check("R1 vraagt geen opnamelocatie meer", "Opnamelocatie" not in punt(c, "R1")["gebruiker"] and "Opnamelocatie" not in punt(c, "R1")["actie"])
+
+r = w(env, "doe", "R2", "--ini", "RP")
+uit = " | ".join(r["uit"])
+check("R2 weigert te oude plugins", "plugin tools 2.17.0, 2.25 of later" in uit and "plugin dossync 1.4.0, 2.6 of later" in uit, uit)
+check("R2 vraagt eerst R1", "eerst R1" in uit, uit)
+check("R2 vraagt geen aangemelde claude -p (de opvang roept geen model op)", "claude" not in uit, uit)
+r = w(env, "doe", "V1", "--ini", "RP")
+uit = " | ".join(r["uit"])
+check("V1 weigert te oude dossync en claude -p op een privéaccount", "plugin dossync 1.4.0, 2.6 of later" in uit
+      and "aangemeld als prive@gmail.com" in uit and "claude auth login" in uit and "rik@equalsthree.be" in uit, uit)
+
+inst.write_text(json.dumps({"version": 2, "plugins": {"setup@e3-setup": [{"version": "1.1.0"}], "tools@e3-shared": [{"version": "2.25.0"}],
+                "deliverables@e3-shared": [{"version": "2.6.2"}], "dossync@e3-dossync": [{"version": "2.6.1"}]}}), encoding="utf-8")
+ts = home / ".claude/plugins/cache/e3-shared/tools/2.25.0/skills/transcript/scripts"
+ts.mkdir(parents=True)
+(ts / "inbox.py").write_text("", encoding="utf-8")
+(home / ".claude/e3-transcript").mkdir(parents=True, exist_ok=True)
+(home / ".claude/e3-transcript/systeem.md").write_text("GPU: geen", encoding="utf-8")
+for d in ("Opnames E3", "Transcripts"):
+    (home / "Documents" / d).mkdir(parents=True, exist_ok=True)
+c = w(env, "controleer", "--ini", "RP")
+check("R1 fout zonder proefopname, en kijkt Opnames E3 na in plaats van Sound Recordings",
+      punt(c, "R1")["status"] == "fout" and "Opnames E3 ok" in punt(c, "R1")["detail"] and "Sound" not in punt(c, "R1")["detail"], punt(c, "R1"))
+r = w(env, "doe", "R1", "--ini", "RP", "--droog")
+check("R1 droog: opnamemap, geen Sound Recordings, geen opnamelocatie", any("Opnames E3 (de opnamemap)" in x for x in r["uit"])
+      and not any("Sound Recordings" in x or "opnamelocatie" in x for x in r["uit"]), r["uit"])
+w(env, "noteer", "proefopname", "ok=true", "detail=12 s voor ongeveer 30 s audio", "--ini", "RP")
+c = w(env, "controleer", "--ini", "RP")
+check("R1 ok na de proefopname", punt(c, "R1")["status"] == "ok", punt(c, "R1")["detail"])
+
+dc = home / ".claude/plugins/cache/e3-dossync/dossync/2.6.1/skills"
+sc, vs = dc / "opvang/scripts", dc / "verwerker/scripts"
+sc.mkdir(parents=True)
+vs.mkdir(parents=True)
+(vs / "verwerker.py").write_text((home / ".claude/plugins/cache/e3-dossync/dossync/1.5.0/skills/verwerker/scripts/verwerker.py").read_text(encoding="utf-8"), encoding="utf-8")
+(sc / "plaud.py").write_text("import os, sys\nt = os.environ.get('PLAUD_TOKENS', '')\nok = os.path.exists(t)\n"
+                             "print('Plaud-token werkt' if ok else 'geen Plaud-token')\nsys.exit(0 if ok else 5)\n", encoding="utf-8")
+(sc / "plan-opnames.ps1").write_text("param([string]$Ini)\n\"E3 Dossync opnames $Ini  28/11/2026 08:25:00\"\n"
+                                     "\"E3 Dossync opnames wachter $Ini  27/11/2026 16:00:00\"\n", encoding="utf-8")
+(vs / "plan-verwerker.ps1").write_text("\"TaskName             NextRunTime\"\n\"E3 Dossync verwerker 28/11/2026 07:20:00\"\n", encoding="utf-8")
+
+voor = foto(t)
+r = w(env, "doe", "R2", "--ini", "RP", "--droog")
+uit = " | ".join(r["uit"])
+check("R2 droog toont beide taken, het commando, de pop-up en de lokale inbox", "zou na een ja de taken 'E3 Dossync opnames wachter RP'" in uit
+      and "'E3 Dossync opnames RP'" in uit and "plan-opnames.ps1" in uit and "-Ini RP" in uit and "zou nakijken" not in uit
+      and "Transcriberen, Wacht op run of Negeer" in uit and "15 s" in uit and "E3 Inbox" in uit, uit)
+r = w(env, "doe", "V1", "--ini", "RP", "--droog")
+uit = " | ".join(r["uit"])
+check("V1 droog toont de claude -p op het privéaccount als vereiste", "zou nakijken: claude -p is aangemeld als prive@gmail.com" in uit, uit)
+check("droog schrijft niets", foto(t) == voor)
+env["E3_CLAUDE_STATUS"] = json.dumps({"loggedIn": True, "email": "rik@equalsthree.be"})
+r = w(env, "doe", "V1", "--ini", "RP", "--droog")
+uit = " | ".join(r["uit"])
+check("V1 droog toont de taak, 7u20 en het commando", "zou na een ja de taak 'E3 Dossync verwerker'" in uit and "7u20" in uit
+      and "plan-verwerker.ps1" in uit and "zou nakijken" not in uit, uit)
+
+alle = [{"n": "E3 Dossync opnames wachter RP", "s": "Running"}, {"n": "E3 Dossync opnames RP", "s": "Ready"},
+        {"n": "E3 Dossync verwerker", "s": "Ready"}]
+c = w(dict(env, E3_TAKEN=json.dumps(alle)), "controleer", "--ini", "RP")
+check("R2 en V1 ok als de taken al met de hand ingepland zijn", punt(c, "R2")["status"] == "ok" and punt(c, "V1")["status"] == "ok"
+      and "niet door deze wizard" in punt(c, "R2")["detail"], [punt(c, "R2"), punt(c, "V1")])
+voor = foto(t)
+r = w(dict(env, E3_TAKEN=json.dumps(alle)), "doe", "R2", "--ini", "RP", "--droog")
+check("R2 droog met bestaande taken: klopt al, schrijft niets", r["uit"][0].startswith("klopt al") and foto(t) == voor, r["uit"])
+
+r = w(env, "doe", "R2", "--ini", "RP")
+check("R2 in proef: niet ingepland zonder --inplannen", r["uit"][0].startswith("flow 05 staat in proef"), r["uit"])
+r = w(env, "doe", "R2", "--ini", "RP", "--inplannen")
+check("R2 plant niets zonder ja", r["uit"][0].startswith("VRAAG: mag ik de taken 'E3 Dossync opnames wachter RP'"), r["uit"])
+c = w(env, "controleer", "--ini", "RP")
+check("R2 nog niet genoteerd zonder ja", punt(c, "R2")["status"] == "klaar-te-zetten")
+(sc / "plan-opnames.ps1").write_text("param([string]$Ini)\n\"E3 Dossync opnames $Ini  28/11/2026 08:25:00\"\n", encoding="utf-8")
+r = w(env, "doe", "R2", "--ini", "RP", "--inplannen", "--ja")
+check("R2 merkt een ontbrekende wachter na plan-opnames.ps1", "ontbreekt" in r["uit"][0] and "wachter RP" in r["uit"][0], r["uit"])
+(sc / "plan-opnames.ps1").write_text("param([string]$Ini)\n\"E3 Dossync opnames $Ini  28/11/2026 08:25:00\"\n"
+                                     "\"E3 Dossync opnames wachter $Ini  27/11/2026 16:00:00\"\n", encoding="utf-8")
+r = w(env, "doe", "R2", "--ini", "RP", "--inplannen", "--ja")
+check("R2 na ja: wachter en uurrun via plan-opnames.ps1", r["uit"][0].startswith("ingepland: E3 Dossync opnames wachter RP"), r["uit"])
+beide = [{"n": "E3 Dossync opnames wachter RP", "s": "Running"}, {"n": "E3 Dossync opnames RP", "s": "Ready"}]
+c = w(dict(env, E3_TAKEN=json.dumps(beide)), "controleer", "--ini", "RP")
+check("R2 ok als beide taken in Taakplanner staan", punt(c, "R2")["status"] == "ok" and "wachter" in punt(c, "R2")["detail"], punt(c, "R2"))
+c = w(dict(env, E3_TAKEN=json.dumps(beide[1])), "controleer", "--ini", "RP")
+check("R2 ziet een verdwenen wachter, ook in proef", punt(c, "R2")["status"] == "fout" and "wachter RP" in punt(c, "R2")["detail"], punt(c, "R2"))
+r = w(dict(env, E3_TAKEN=json.dumps(beide)), "doe", "R2", "--ini", "RP")
+check("R2 tweede keer overgeslagen als beide taken er staan", r["uit"][0].startswith("klopt al"), r["uit"])
+
+r = w(env, "doe", "V1", "--ini", "RP", "--inplannen")
+check("V1 plant niets zonder ja", r["uit"][0].startswith("VRAAG: mag ik de taak 'E3 Dossync verwerker'"), r["uit"])
+r = w(env, "doe", "V1", "--ini", "RP", "--inplannen", "--ja")
+check("V1 na ja: verwerker via plan-verwerker.ps1", r["uit"][0] == "ingepland: E3 Dossync verwerker", r["uit"])
+c = w(dict(env, E3_TAKEN=json.dumps(alle)), "controleer", "--ini", "RP")
+check("V1 ok als de verwerker in Taakplanner staat", punt(c, "V1")["status"] == "ok" and "eigen verwerker" in punt(c, "V1")["detail"], punt(c, "V1"))
+c = w(dict(env, E3_TAKEN=json.dumps(beide)), "controleer", "--ini", "RP")
+check("V1 ziet een verdwenen verwerker", punt(c, "V1")["status"] == "fout" and "E3 Dossync verwerker" in punt(c, "V1")["detail"], punt(c, "V1"))
+r = w(dict(env, E3_TAKEN=json.dumps(alle)), "doe", "V1", "--ini", "RP")
+check("V1 tweede keer overgeslagen", r["uit"][0].startswith("klopt al"), r["uit"])
+
+c = w(env, "controleer", "--ini", "RP")
+check("P1 zonder token: nog niet aangemeld", punt(c, "P1")["status"] == "fout" and "nog niet aangemeld" in punt(c, "P1")["detail"], punt(c, "P1")["detail"])
+r = w(env, "doe", "P1", "--ini", "RP", "--droog")
+check("P1 droog: connector voor alle sessies, geen aparte Plaud-map", "zou draaien: claude mcp add -s user plaud -- npx -y @plaud-ai/mcp@latest" in r["uit"]
+      and not any("Documents\\Plaud" in x for x in r["uit"]), r["uit"])
+r = w(env, "doe", "P1", "--ini", "JDS")
+check("P1 doet niets buiten de ophaal-laptop", "enkel opgehaald op de laptop van RP" in r["uit"][0], r["uit"])
+PLAUD = "plaud-token-789"
+(home / ".plaud").mkdir()
+(home / ".plaud/tokens-mcp.json").write_text(json.dumps({"access_token": PLAUD}), encoding="utf-8")
+(home / ".claude.json").write_text(json.dumps({"mcpServers": {"plaud": {"command": "npx", "args": ["-y", "@plaud-ai/mcp@latest"]}}}), encoding="utf-8")
+c = w(env, "controleer", "--ini", "RP")
+check("P1 ok met connector, token, Opnames E3 en plaud.py test", punt(c, "P1")["status"] == "ok" and "Plaud-token werkt" in punt(c, "P1")["detail"]
+      and "Opnames E3 ok" in punt(c, "P1")["detail"], punt(c, "P1")["detail"])
+check("geen map Documents\\Plaud", not (home / "Documents/Plaud").exists())
+check("Plaud-token komt nooit in de uitvoer", PLAUD not in json.dumps([c, w(env, "doe", "P1", "--ini", "RP"), w(env, "rapport", "--ini", "RP", "--droog")]))
+
+c = w(env, "controleer", "--ini", "RP")
+check("R3 proefopname open tot ze genoteerd is", punt(c, "R3")["status"] == "open" and "TEST proef RP" in punt(c, "R3")["actie"]
+      and "E3 Inbox" in punt(c, "R3")["actie"] and "10 seconden" in punt(c, "R3")["gebruiker"], punt(c, "R3"))
+li = home / "Documents/E3 Inbox/inbox"
+li.mkdir(parents=True)
+item = "261127 1500 geluidsrecorder RP opname 261127 1458 TEST proef RP.md"
+(li / item).write_text("---\nsamenvatting: nog niet\n---\n\n## Transcript\n", encoding="utf-8")
+r = w(env, "wacht", "TEST proef RP", "--ini", "RP", "--minuten", "0")
+check("wacht vindt het item in de lokale inbox", (r["gevonden"] or "").endswith(item), r)
+r = w(env, "opruimen", "--ini", "RP", "--droog")
+check("opruimen droog laat het item staan", (li / item).exists() and any(item in x for x in r), r)
+w(env, "opruimen", "--ini", "RP")
+check("opruimen zet het testitem naast de lokale inbox in _verwerkt/setup-test",
+      not (li / item).exists() and (home / "Documents/E3 Inbox/_verwerkt/setup-test" / item).exists())
+check("de gedeelde inbox bleef leeg", not any((t / "drive/Shared drives/E3 - Finance/Dossync").rglob("*TEST proef*")))
+w(env, "noteer", "test.R3", "ok=true", "detail=item in de lokale inbox met een transcript", "--ini", "RP")
+c = w(env, "controleer", "--ini", "RP")
+check("R3 ok na de proefopname", punt(c, "R3")["status"] == "ok")
+r = w(env, "rapport", "--ini", "RP", "--droog")
+check("rapport kent flow 05 als Geluidsrecorder en leidraden", "05 Geluidsrecorder en leidraden" in r["tekst"], r["tekst"][:300])
+check("rapport toont de eigen verwerker", "V1 Eigen verwerker" in r["tekst"])
+check("persoon toont de Plaud-ophaler", c["persoon"]["plaud_ophaler"] is True)
+pg = (HERE / "checklist.html").read_text(encoding="utf-8")
+check("checklist vraagt niet meer naar het Plaud-toestel en kent de nieuwe geldt-waarden",
+      "Plaud-toestel" not in pg and "lokale_inbox" in pg and "plaud_ophaler" in pg)
+inst.write_text(volledig, encoding="utf-8")
+env.pop("E3_CLAUDE_STATUS")
 
 print(f"\n{'ALLES OK' if not fouten else f'{fouten} FOUT(EN)'}  ({t})")
 sys.exit(1 if fouten else 0)

@@ -6,6 +6,7 @@ Wat het moet aansluiten staat in ../flows.json, niet in dit script.
     python wizard.py checklist                                   eerste scherm: wie ben je en wat gebruik je (lokale pagina)
     python wizard.py controleer [--ini JDS] [--andere-pc]        stand per stap, JSON, schrijft niets
     python wizard.py doe STAP --ini JDS [--droog]                de automatische actie van een pc-stap
+    python wizard.py doe R2|V1 --ini JDS --ja [--inplannen]      opnames-taken of eigen verwerker inplannen, enkel na een ja
     python wizard.py noteer SLEUTEL JSON --ini JDS [--droog]     wat Claude vaststelde (connector, taak, antwoord, test)
     python wizard.py wacht TEKST --ini JDS [--minuten 10]        wacht tot een testbestand in de inbox staat
     python wizard.py opruimen --ini JDS [--droog]                testbestanden van INI naar _verwerkt/setup-test
@@ -171,6 +172,7 @@ def persoon(m, ini, st):
     zetel = dic(st.get("claude_code")).get("zetel")
     if zetel:
         p["zetel"] = zetel
+    p["plaud_ophaler"] = ini == m.get("plaud_ophaler")   # Plaud enkel op één laptop per team (gedeeld account)
     if not p.get("dossync_uren"):
         bezet = {tuple(x["dossync_uren"]) for x in m["personen"].values() if x.get("dossync_uren")}
         p["dossync_uren"] = next((u for u in m["uren_nieuw"] if tuple(u) not in bezet), m["uren_nieuw"][-1])
@@ -181,7 +183,7 @@ def vul(tekst, m, ini, p, **extra):
     w = {"INI": ini, "mail": p.get("mail") or f"<werkadres van {ini}>",
          "webapp": m["webapp"] or "de webapp (de link staat in de config op E3 - Finance; eerst Google Drive voor desktop)",
          "beheerder": m["beheerder"], "uren": " en ".join(p.get("dossync_uren") or []),
-         "connector": "de connector met een ✗"}
+         "connector": "de connector met een ✗", "ophaler": m.get("plaud_ophaler") or "de ophaal-laptop"}
     w.update(extra)
     return re.sub(r"\{(\w+)\}", lambda x: str(w.get(x.group(1), x.group(0))), tekst or "")
 
@@ -192,12 +194,28 @@ def geldt(stap, p):
         return True
     if g in ("granola", "plaud", "opnemen", "whatsapp"):
         return p.get(g)          # True, False of None (nog te vragen)
+    if g == "plaud_ophaler":
+        return bool(p.get("plaud_ophaler"))
+    if g == "opnames":           # de opnames-taken: wie opneemt, en altijd de Plaud-ophaler
+        return True if p.get("plaud_ophaler") else p.get("opnemen")
+    if g == "lokale_inbox":      # eigen verwerker: wie opneemt of WhatsApp laat meelezen (bronnen in Documents\E3 Inbox)
+        o, w = geldt({"geldt": "opnames"}, p), p.get("whatsapp")
+        return True if (o or w) else (None if None in (o, w) else False)
     if g == "eigenaar":
         return bool(p.get("eigenaar"))   # enkel de eigenaar (Joëll): bv. de retro-cloudtaak
     if g in ("iphone", "android"):
         t = (p.get("toestel") or "").lower()
         return None if not t else t == g
     return True
+
+
+def vraag_van(g, p):
+    """Welke vraag eerst beantwoord moet worden voor een stap waarvan nog niet geweten is of ze geldt."""
+    if g == "opnames":
+        return "opnemen"
+    if g == "lokale_inbox":
+        return "opnemen" if geldt({"geldt": "opnames"}, p) is None else "whatsapp"
+    return g
 
 
 def vrijgave(m, stap):
@@ -371,7 +389,7 @@ def c_transcript(m, ini, p, st):
     if "Brain" in root or "Shared drives" in root:
         delen.append(f"uitvoermap {root} ligt op de drive: moet Documents\\Transcripts zijn")
         ok = False
-    for d in ("Sound Recordings", "Transcripts"):
+    for d in (OPNAMEMAP.name, "Transcripts"):
         bestaat = (HOME / "Documents" / d).is_dir()
         delen.append(f"Documents\\{d} {'ok' if bestaat else 'ontbreekt'}")
         ok &= bestaat
@@ -383,6 +401,162 @@ def c_transcript(m, ini, p, st):
         delen.append("proefopname nog niet gedaan")
         ok = False
     return ok, "; ".join(delen)
+
+
+# ---------- Opnames-opvang van dossync (27/11, 2.6): één opnamemap en een lokale inbox per gebruiker ----------
+# Zie dossync/skills/opvang/opnames.md. Plaud, de Geluidsrecorder (de opvang verhuist elke opname uit Documents\Sound
+# Recordings, niets in te stellen), de WhatsApp-spraakberichten en wat de persoon er zelf in zet, komen in
+# Documents\Opnames E3. Twee Windows-taken: de wachter (bij het aanmelden, elke 20 s, pop-up per nieuwe opname van meer dan
+# 10 s) en de uurrun (Plaud, wat wacht op de run, leidraden, opruimen na 30 dagen). Het transcript gaat naar de lokale
+# inbox Documents\E3 Inbox\inbox, nooit naar de gedeelde drive; daar komen ook de WhatsApp-chats (tools 2.25). Enkel een
+# verwerker op dezelfde laptop leest die inbox: wie opneemt of WhatsApp laat meelezen, krijgt een eigen geplande
+# verwerker (plan-verwerker.ps1, draait claude -p). Plaud haalt enkel op waar het token staat.
+
+OPNAMES_MIN = {"tools": (2, 25), "dossync": (2, 6)}
+OPNAMEMAP = HOME / "Documents" / "Opnames E3"
+LOKALE_INBOX = pathlib.Path(os.environ.get("E3_LOKALE_INBOX") or HOME / "Documents" / "E3 Inbox")
+VERWERKER_TAAK = "E3 Dossync verwerker"
+
+
+def opnames_taken_namen(ini):
+    return [f"E3 Dossync opnames wachter {ini}", f"E3 Dossync opnames {ini}"]
+
+
+def taken_in_planner(namen):
+    """{taaknaam: staat} van deze taken in Windows Taakplanner; een ontbrekende taak staat er niet in.
+    E3_TAKEN (json) enkel voor tests."""
+    ruw = os.environ.get("E3_TAKEN")
+    if ruw is None:
+        lijst = ", ".join("'" + n.replace("'", "''") + "'" for n in namen)
+        ruw = ps(f"@(Get-ScheduledTask -TaskName {lijst} -ErrorAction SilentlyContinue | "
+                 "ForEach-Object { [pscustomobject]@{n=$_.TaskName; s=[string]$_.State} }) | ConvertTo-Json -Compress")
+    try:
+        d = json.loads(ruw or "[]")
+    except json.JSONDecodeError:
+        return {}
+    if isinstance(d, dict):
+        d = d.get("value", [d]) if "n" not in d else [d]
+    return {x["n"]: x.get("s") for x in d if isinstance(x, dict) and x.get("n") in namen}
+
+
+def taken_staan(namen):
+    taken = taken_in_planner(namen)
+    mist = [n for n in namen if n not in taken]
+    if mist:
+        return False, "taak ontbreekt in Taakplanner: " + ", ".join(mist)
+    uit = [n for n, s in taken.items() if str(s).lower() in ("disabled", "1")]
+    if uit:
+        return False, "taak uitgeschakeld: " + ", ".join(uit)
+    return True, ", ".join(f"{n}: {taken[n]}" for n in namen)
+
+
+def c_opnames_taken(m, ini, p, st):
+    """Nakijken van R2 bovenop de notitie: staan beide taken er nog?"""
+    ok, detail = taken_staan(opnames_taken_namen(ini))
+    return ok, f"wachter en uurrun staan in Taakplanner ({detail})" if ok else detail
+
+
+def c_verwerker_taak(m, ini, p, st):
+    """Nakijken van V1 bovenop de notitie: staat de eigen verwerker er nog?"""
+    ok, detail = taken_staan([VERWERKER_TAAK])
+    return ok, f"eigen verwerker staat in Taakplanner ({detail})" if ok else detail
+
+
+NAKIJKEN = {"opnames_taken": c_opnames_taken, "verwerker_taak": c_verwerker_taak}
+
+
+def versie(naam):
+    """Versie van een geïnstalleerde plugin als tuple, of None."""
+    inst = geinstalleerd()
+    k = next((k for k in inst if k.split("@")[0] == naam), None)
+    nrs = re.findall(r"\d+", str(inst[k].get("version") or "")) if k else []
+    return tuple(int(n) for n in nrs) or None
+
+
+def te_oud(minimum):
+    """['eerst A3: plugin tools 2.17.0, 2.25 of later nodig', ...] voor elke plugin onder het minimum."""
+    uit = []
+    for n, (a, b) in minimum.items():
+        v = versie(n)
+        if not v or v[:2] < (a, b):
+            uit.append(f"eerst A3: plugin {n} {'.'.join(map(str, v)) if v else 'ontbreekt'}, {a}.{b} of later nodig")
+    return uit
+
+
+def dossync_scripts(skill):
+    """Map scripts van een skill in de nieuwste geïnstalleerde dossync, of None."""
+    kand = sorted(glob.glob(str(HOME / ".claude" / "plugins" / "cache" / "*" / "dossync" / "*" / "skills" / skill / "scripts")),
+                  key=lambda x: [int(n) for n in re.findall(r"\d+", pathlib.Path(x).parents[2].name)])
+    return pathlib.Path(kand[-1]) if kand else None
+
+
+def claude_pad():
+    """Zoals de taken van dossync: E3_CLAUDE, ~/.local/bin/claude.exe, dan het PATH."""
+    for c in (os.environ.get("E3_CLAUDE"), str(HOME / ".local" / "bin" / "claude.exe"), shutil.which("claude")):
+        if c and os.path.exists(c):
+            return c
+    return None
+
+
+def claude_aanmelding():
+    """(aangemeld, adres) van de claude-CLI die de geplande verwerker gebruikt. E3_CLAUDE_STATUS (json) enkel voor tests."""
+    ruw = os.environ.get("E3_CLAUDE_STATUS")
+    if ruw is None:
+        c = claude_pad()
+        if not c:
+            return None, None
+        try:
+            ruw = subprocess.run([c, "auth", "status"], capture_output=True, text=True, encoding="utf-8",
+                                 errors="replace", timeout=30).stdout
+        except Exception:
+            return None, None
+    try:
+        s = json.loads(ruw)
+    except json.JSONDecodeError:
+        return None, None
+    return bool(s.get("loggedIn")), s.get("email")
+
+
+def plaud_connector():
+    """Staat de Plaud-connector in ~/.claude.json, voor alle sessies of voor een project?"""
+    d = lees_json(HOME / ".claude.json", {}) or {}
+    if "plaud" in (d.get("mcpServers") or {}):
+        return True
+    return any("plaud" in (dic(v).get("mcpServers") or {}) for v in (d.get("projects") or {}).values())
+
+
+def plaud_token():
+    for n in ("tokens-mcp.json", "tokens.json"):
+        f = HOME / ".plaud" / n
+        if f.is_file():
+            return f
+    return None
+
+
+def plaud_test(sc, token):
+    """plaud.py test van dossync: 'Plaud-token werkt' of de reden. Het token zelf komt nooit in de uitvoer."""
+    env = dict(os.environ, PLAUD_TOKENS=str(token))
+    try:
+        r = subprocess.run([sys.executable, "-I", str(sc / "plaud.py"), "test"], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=60, env=env)
+    except Exception as e:
+        return False, f"plaud.py test liep niet ({e.__class__.__name__})"
+    regel = (r.stdout or r.stderr or "").strip().splitlines()[-1:] or ["geen uitvoer"]
+    return r.returncode == 0 and "werkt" in regel[0], regel[0][:160]
+
+
+def c_plaud(m, ini, p, st):
+    sc = dossync_scripts("opvang")
+    con, token = plaud_connector(), plaud_token()
+    map_ = OPNAMEMAP.is_dir()
+    delen = ["Plaud-connector aanwezig" if con else "Plaud-connector ontbreekt",
+             "Documents\\Opnames E3 ok" if map_ else "Documents\\Opnames E3 ontbreekt"]
+    if not sc or not (sc / "plaud.py").is_file():
+        return False, "; ".join(delen + ["plaud.py niet gevonden (dossync 2.6 of later ontbreekt)"])
+    if not token:
+        return False, "; ".join(delen + ["nog niet aangemeld bij Plaud (geen token in %USERPROFILE%\\.plaud)"])
+    ok, detail = plaud_test(sc, token)
+    return con and map_ and ok, "; ".join(delen + [detail])
 
 
 WA_CACHE = str(HOME / ".claude" / "plugins" / "cache" / "*" / "tools" / "*" / "skills" / "whatsapp")
@@ -601,7 +775,7 @@ def checklist(m, wacht_min=30, open_browser=True):
     oud = staat(oud_ini) if oud_ini else {}
     flows = [{"id": f["id"], "naam": f["naam"], "vrijgave": f["vrijgave"],
               "geldt": sorted({s["geldt"] for s in m["stappen"] if s["id"] in f["stappen"]})} for f in m["flows"]]
-    data = {"domein": m["domein"], "geweigerd": m["geweigerd"], "flows": flows,
+    data = {"domein": m["domein"], "geweigerd": m["geweigerd"], "flows": flows, "plaud_ophaler": m.get("plaud_ophaler"),
             "personen": [{"ini": k, "naam": v.get("naam"), "mail": v.get("mail")} for k, v in m["personen"].items()],
             "vooraf": {"ini": oud_ini, **(oud.get("checklist") or {}), **(oud.get("antwoord") or {})}}
     pagina = (HERE / "checklist.html").read_text(encoding="utf-8").replace("/*DATA*/null", json.dumps(data, ensure_ascii=False))
@@ -856,7 +1030,7 @@ def verwerker_kent(adres):
 
 
 PC = {"programmas": c_programmas, "github": c_github, "mappen": c_mappen, "teaminstructies": c_teaminstructies, "e3crm": c_e3crm, "sleutel": c_sleutel, "laptop": c_laptop, "plugins": c_plugins, "rechten": c_rechten, "profiel": c_profiel, "webapp": c_webapp,
-      "bijlagen": c_bijlagen, "transcript": c_transcript, "whatsapp": c_whatsapp, "publiek": c_publiek}
+      "bijlagen": c_bijlagen, "transcript": c_transcript, "whatsapp": c_whatsapp, "publiek": c_publiek, "plaud": c_plaud}
 
 
 def c_notitie(stap, st):
@@ -895,8 +1069,9 @@ def controleer(m, ini, andere_pc=False):
         if s.get("aandacht") and str(p.get("zetel") or "").lower() == "standard":
             punt["aandacht"] = s["aandacht"]
         if g is None:
-            vragen.add(s["geldt"])
-            punt.update(status="vraag", detail=f"eerst vragen: {s['geldt']}")
+            vraag = vraag_van(s["geldt"], p)
+            vragen.add(vraag)
+            punt.update(status="vraag", detail=f"eerst vragen: {vraag}")
         elif g is False:
             punt.update(status="nvt", detail="niet van toepassing")
         elif v == "dicht":
@@ -909,15 +1084,26 @@ def controleer(m, ini, andere_pc=False):
                     ok, detail = PC[s["controle"]](m, ini, p, st)
                 except Exception as e:  # een controle mag de wizard nooit laten vallen
                     ok, detail = False, f"controle faalde: {e}"
-            else:
+            verdwenen = False
+            if s["soort"] != "pc":
                 ok, detail = c_notitie(s, st)
+                if ok is not False and s.get("nakijken") and not andere_pc:   # bv. R2 en V1: staan de taken er (nog)?
+                    try:
+                        ok2, detail2 = NAKIJKEN[s["nakijken"]](m, ini, p, st)
+                    except Exception as e:
+                        ok2, detail2 = False, f"nakijken faalde: {e}"
+                    if ok:
+                        ok, detail = ok2, detail2
+                        verdwenen = not ok2   # ingepland maar nu weg: fout tonen, ook als de flow in proef staat
+                    elif ok2:                 # al ingepland buiten de wizard om (met de hand of een vorige versie)
+                        ok, detail = True, detail2 + "; al ingepland, niet door deze wizard"
             status = {True: "ok", False: "fout", None: "open"}[ok]
-            if s["soort"] == "taak" and v == "proef" and status != "ok":
+            if s["soort"] == "taak" and v == "proef" and status != "ok" and not verdwenen:
                 status, detail = "klaar-te-zetten", (reden or "flow nog in proef").rstrip(".") + "; de taak wordt voorbereid, niet ingepland"
             punt.update(status=status, detail=detail)
         punten.append(punt)
     volgende = next((x for x in punten if x["status"] in ("fout", "open", "vraag")), None)
-    return {"ini": ini, "config": m.get("config_gevonden"), "persoon": {k: p.get(k) for k in ("naam", "mail", "rol", "toestel", "granola", "plaud", "opnemen", "whatsapp", "dossync_uren", "eigenaar", "zetel")},
+    return {"ini": ini, "config": m.get("config_gevonden"), "persoon": {k: p.get(k) for k in ("naam", "mail", "rol", "toestel", "granola", "plaud_ophaler", "opnemen", "whatsapp", "dossync_uren", "eigenaar", "zetel")},
             "vragen": sorted(vragen), "punten": punten, "volgende": volgende and volgende["id"],
             "andere_pc": andere_pc, "tijd": NU.isoformat(timespec="minutes")}
 
@@ -1053,7 +1239,7 @@ def a_transcript(m, ini, p, st, droog):
     stappen = [[sys.executable, str(setup), "--install"], [sys.executable, str(setup), "--root", str(root)]]
     if droog:
         return [f"zou draaien: {' '.join(c[1:])}" for c in stappen] + [
-            "zou Documents\\Sound Recordings en Documents\\Transcripts aanmaken als ze ontbreken",
+            "zou Documents\\Opnames E3 (de opnamemap) en Documents\\Transcripts aanmaken als ze ontbreken",
             "zou een proefopname van een halve minuut maken (Windows-spraak, geen microfoon) en lokaal uitschrijven in een tijdelijke map"]
     uit = []
     ok_sys = (HOME / ".claude" / "e3-transcript" / "systeem.md").exists()
@@ -1061,7 +1247,7 @@ def a_transcript(m, ini, p, st, droog):
         for c in stappen:
             r = subprocess.run(c)
             uit.append(f"{pathlib.Path(c[1]).name} {' '.join(c[2:])}: {'ok' if r.returncode == 0 else 'fout ' + str(r.returncode)}")
-    for d in ("Sound Recordings", "Transcripts"):
+    for d in (OPNAMEMAP.name, "Transcripts"):
         (HOME / "Documents" / d).mkdir(parents=True, exist_ok=True)
     if dic(st.get("proefopname")).get("ok"):
         uit.append("proefopname al gedaan")
@@ -1206,7 +1392,7 @@ def wa_taak_ps(ini, pythonw, starter):
             "-ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew -Hidden; "
             "$p = New-ScheduledTaskPrincipal -UserId \"$env:USERDOMAIN\\$env:USERNAME\" -LogonType Interactive -RunLevel Limited; "
             f"Register-ScheduledTask -TaskName 'E3 WhatsApp-sweep {q(ini)}' -Action $a -Trigger $t -Settings $s -Principal $p -Force "
-            "-Description 'Equals Three: leest de chats in de WhatsApp-lijst Equals Three en zet nieuwe berichten in de Dossync-inbox. "
+            "-Description 'Equals Three: leest de chats in de WhatsApp-lijst Equals Three en zet nieuwe berichten in de lokale inbox Documents\\E3 Inbox. "
             "Zonder model, lage prioriteit.' | Out-Null; "
             f"(Get-ScheduledTaskInfo -TaskName 'E3 WhatsApp-sweep {q(ini)}').NextRunTime.ToString('dd/MM HH:mm')")
 
@@ -1240,16 +1426,146 @@ def a_whatsapp_sweep(m, ini, p, st, droog):
     ok = r.returncode == 0
     detail = (f"Windows-taak 'E3 WhatsApp-sweep {ini}', werkdagen 8u10-20u10 elk uur; volgende run {r.stdout.strip()}"
               if ok else f"taak maken mislukt: {(r.stderr or r.stdout).strip()[:200]}")
-    taken = dictdic(st.get("taak"))
+    taken = dict(dic(st.get("taak")))
     taken["whatsapp"] = {"ok": ok, "detail": detail, "datum": NU.date().isoformat()}
     bewaar_staat(ini, {"taak": taken}, False)
     return uit + [detail]
 
 
+def a_plaud(m, ini, p, st, droog):
+    """P1: enkel op de ophaal-laptop. Connector voor alle sessies, Documents\\Opnames E3, en na de aanmelding plaud.py test.
+    De aanmelding zelf doet Claude met de tool login van de connector; de persoon klikt Authorize in de browser."""
+    if not p.get("plaud_ophaler"):
+        return [f"Plaud wordt enkel opgehaald op de laptop van {m.get('plaud_ophaler') or 'de ophaler'}: hier niets te doen"]
+    sc = dossync_scripts("opvang")
+    if not sc or not (sc / "plaud.py").is_file():
+        return ["plaud.py ontbreekt: eerst A3 (dossync 2.6 of later)"]
+    npx = shutil.which("npx")
+    if droog:
+        uit = [] if OPNAMEMAP.is_dir() else ["zou Documents\\Opnames E3 aanmaken (daarin haalt Plaud op)"]
+        if not plaud_connector():
+            uit.append("zou draaien: claude mcp add -s user plaud -- npx -y @plaud-ai/mcp@latest")
+        uit.append("zou na de aanmelding (tool login van de connector) plaud.py test draaien" if not plaud_token()
+                   else "zou plaud.py test draaien")
+        return uit
+    OPNAMEMAP.mkdir(parents=True, exist_ok=True)
+    uit, nieuw = [], False
+    if not plaud_connector():
+        claude = claude_pad()
+        if not claude:
+            return uit + ["claude-CLI niet gevonden: voeg de connector toe met /mcp in Claude, naam plaud, commando npx -y @plaud-ai/mcp@latest"]
+        if not npx:
+            return uit + ["Node.js ontbreekt (npx): eerst A0"]
+        r = subprocess.run([claude, "mcp", "add", "-s", "user", "plaud", "--", npx, "-y", "@plaud-ai/mcp@latest"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+        if r.returncode:
+            return uit + [f"Plaud-connector toevoegen mislukt: {(r.stderr or r.stdout).strip()[:200]}"]
+        uit.append("Plaud-connector toegevoegd voor alle sessies")
+        nieuw = True
+    token = plaud_token()
+    if not token:
+        if nieuw:
+            return uit + ["GEBRUIKER: start een nieuwe sessie in Claude Code (de connector laadt pas dan) en zeg 'verder met de setup'"]
+        return uit + ["CLAUDE: roep de tool login van de Plaud-connector aan; de persoon meldt zich in de browser aan op het "
+                      "gedeelde Plaud-account en klikt Authorize. Daarna doe P1 opnieuw."]
+    ok, detail = plaud_test(sc, token)
+    return uit + [detail if ok else f"{detail}: meld opnieuw aan met de tool login van de Plaud-connector"]
+
+
+def al_ingepland(ini, st, notitie, detail, droog):
+    """De taken staan al in Taakplanner: niets inplannen. Ontbreekt de notitie (met de hand ingepland), dan noteren."""
+    if not droog and not dic(dic(st.get("taak")).get(notitie)).get("ok"):
+        taken = dict(dic(st.get("taak")))
+        taken[notitie] = {"ok": True, "detail": detail + "; stond al in Taakplanner", "datum": NU.date().isoformat()}
+        bewaar_staat(ini, {"taak": taken}, False)
+    return [f"klopt al, overgeslagen: {detail}"]
+
+
+def plan_taak(m, ini, st, notitie, nodig, ps1, args, namen, wat, flow, droog):
+    """Gemeen deel van R2 en V1: vereisten, droog, proef, de vraag, en pas na --ja het PowerShell-script van dossync."""
+    cmd = f'powershell -NoProfile -ExecutionPolicy Bypass -File "{ps1}"' + "".join(f" {a}" for a in args)
+    plannen = vrijgave(m, {"flow": flow})[0] == "vrij" or INPLANNEN
+    stap = {"opnames": "R2", "verwerker": "V1"}[notitie]
+    if droog:
+        return [f"zou nakijken: {x}" for x in nodig] + [
+            f"zou na een ja {wat} {'inplannen' if plannen else 'voorbereiden, niet inplannen (flow in proef)'}", cmd]
+    if nodig:
+        return nodig
+    if not plannen:
+        return [f"flow {flow} staat in proef: niet ingepland. Inplannen met: wizard.py doe {stap} --inplannen --ja", cmd]
+    if not JA:
+        return [f"VRAAG: mag ik {wat} inplannen? Na ja: wizard.py doe {stap} --ja", cmd]
+    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ps1), *args],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
+    mist = [n for n in namen if n not in (r.stdout or "")]
+    ok = r.returncode == 0 and not mist
+    if ok:
+        detail = f"ingepland: {', '.join(namen)}"
+    elif r.returncode == 0:
+        detail = "taak ontbreekt na " + pathlib.Path(ps1).name + ": " + ", ".join(mist)
+    else:
+        detail = f"inplannen mislukt: {(r.stderr or r.stdout).strip()[:200]}"
+    taken = dict(dic(st.get("taak")))
+    taken[notitie] = {"ok": ok, "detail": detail, "datum": NU.date().isoformat()}
+    bewaar_staat(ini, {"taak": taken}, False)
+    return [detail]
+
+
+def a_opnames(m, ini, p, st, droog):
+    """R2: twee Windows-taken via plan-opnames.ps1 van dossync: de wachter (bij het aanmelden, pop-up per nieuwe opname
+    in Documents\\Opnames E3) en de uurrun. Eerst de vereisten, dan pas na een ja van de gebruiker (--ja) inplannen.
+    Bij een flow in proef enkel voorbereiden, tenzij --inplannen (tester)."""
+    wachter, uurrun = opnames_taken_namen(ini)
+    ok, detail = c_opnames_taken(m, ini, p, st)
+    if ok:
+        return al_ingepland(ini, st, "opnames", detail, droog)
+    nodig = te_oud(OPNAMES_MIN)
+    ok, detail = c_transcript(m, ini, p, st)
+    if not ok:
+        nodig.append(f"eerst R1: {detail}")
+    sc = dossync_scripts("opvang")
+    ps1 = sc / "plan-opnames.ps1" if sc else None
+    if not ps1 or not ps1.is_file():
+        nodig.append("plan-opnames.ps1 niet gevonden: eerst A3 (dossync 2.6 of later)")
+    wat = (f"de taken '{wachter}' (bij het aanmelden, kijkt elke 20 s in Documents\\Opnames E3 en vraagt per nieuwe opname "
+           f"van meer dan 10 s: Transcriberen, Wacht op run of Negeer; na 15 s zonder keuze Wacht op run) en '{uurrun}' "
+           f"(elk uur van 8u25 tot 20u25); het transcript gaat naar de lokale inbox Documents\\E3 Inbox, enkel als de "
+           f"gebruiker aangemeld is")
+    return plan_taak(m, ini, st, "opnames", nodig, ps1, ["-Ini", ini], [wachter, uurrun], wat, "05", droog)
+
+
+def a_verwerker(m, ini, p, st, droog):
+    """V1: de eigen geplande verwerker (plan-verwerker.ps1 van dossync). Persoonlijke bronnen (opnames, WhatsApp-chats,
+    leidraden) komen in de lokale inbox Documents\\E3 Inbox van deze laptop, en enkel een verwerker op deze laptop leest
+    die. De taak draait claude -p: de CLI moet op het werkadres aangemeld zijn. Pas na een ja (--ja) inplannen."""
+    ok, detail = c_verwerker_taak(m, ini, p, st)
+    if ok:
+        return al_ingepland(ini, st, "verwerker", detail, droog)
+    nodig = te_oud({"dossync": OPNAMES_MIN["dossync"]})
+    if not all(e3crm_toegang()):
+        nodig.append("eerst A7: geen E3CRM-toegang op deze laptop (de verwerker leest E3CRM)")
+    aan, adres = claude_aanmelding()
+    mail = p.get("mail")
+    if aan is None:
+        nodig.append("claude-CLI niet gevonden: eerst A0 (de verwerker draait claude -p)")
+    elif not aan or (mail and (adres or "").lower() != mail.lower()):
+        nodig.append(f"claude -p is {'niet aangemeld' if not aan else 'aangemeld als ' + str(adres)}, niet op {mail}: "
+                     f"GEBRUIKER: voer in een terminal 'claude auth login' uit en meld je aan met {mail}")
+    sc = dossync_scripts("verwerker")
+    ps1 = sc / "plan-verwerker.ps1" if sc else None
+    if not ps1 or not ps1.is_file():
+        nodig.append("plan-verwerker.ps1 niet gevonden: eerst A3 (dossync 2.6 of later)")
+    wat = (f"de taak '{VERWERKER_TAAK}' (elke dag om 7u20 en 12u50 /dossync:verwerker met claude -p op {mail}: leest de "
+           f"lokale inbox Documents\\E3 Inbox en de gedeelde inbox en zet enkel wat relevant is als voorstel in E3 Daily; "
+           f"lokale transcripten en chats verlaten de laptop nooit letterlijk)")
+    return plan_taak(m, ini, st, "verwerker", nodig, ps1, [], [VERWERKER_TAAK], wat, "05", droog)
+
+
 INPLANNEN = False
+JA = False
 
 ACTIES = {"A0": a_programmas, "A14": a_mappen, "A9": a_teaminstructies, "A7": a_e3crm, "A10": a_sleutel, "A11": a_sleutel_cloud, "A2": a_laptop, "A3": a_plugins, "A5": a_rechten, "A6": a_profiel, "R1": a_transcript,
-          "W1": a_whatsapp, "W2": a_whatsapp_sweep}
+          "W1": a_whatsapp, "W2": a_whatsapp_sweep, "P1": a_plaud, "R2": a_opnames, "V1": a_verwerker}
 
 
 def doe(m, ini, stap_id, droog):
@@ -1344,15 +1660,23 @@ def noteer(m, ini, sleutel, waarde, droog):
     return bewaar_staat(ini, deel, droog)
 
 
+def inboxen(m):
+    """De gedeelde inbox op de drive en de lokale inbox van deze laptop (opnames, WhatsApp-chats), met hun _verwerkt."""
+    uit = []
+    gedeeld = pad(m, "inbox")
+    if gedeeld:
+        uit.append((gedeeld, pad(m, "verwerkt_test")))
+    uit.append((LOKALE_INBOX / "inbox", LOKALE_INBOX / "_verwerkt" / "setup-test"))
+    return uit
+
+
 def wacht(m, ini, tekst, minuten):
-    inbox = pad(m, "inbox")
-    if not inbox:
-        return {"gevonden": None, "detail": "inbox niet zichtbaar"}
+    bakken = [i for i, _ in inboxen(m)]
     einde = time.time() + minuten * 60
     start = time.time() - 15 * 60
     patroon = tekst.lower()
     while True:
-        for f in inbox.rglob("*"):
+        for f in (x for b in bakken if b.is_dir() for x in b.rglob("*")):
             try:
                 if f.is_file() and patroon in f.name.lower() and f.stat().st_mtime >= start:
                     return {"gevonden": str(f), "grootte": f.stat().st_size,
@@ -1360,23 +1684,24 @@ def wacht(m, ini, tekst, minuten):
             except OSError:
                 continue
         if time.time() > einde:
-            return {"gevonden": None, "detail": f"na {minuten} minuten niets met '{tekst}' in de inbox"}
+            return {"gevonden": None, "detail": f"na {minuten} minuten niets met '{tekst}' in de inbox of de lokale inbox"}
         time.sleep(20)
 
 
 def opruimen(m, ini, droog):
-    inbox, doel = pad(m, "inbox"), pad(m, "verwerkt_test")
-    if not inbox:
-        return ["inbox niet zichtbaar"]
+    """Testbestanden van INI naar _verwerkt/setup-test naast de inbox waar ze stonden (gedeeld of lokaal)."""
     uit = []
-    for f in inbox.rglob("*"):
-        if f.is_file() and re.search(rf"\bTEST\b.*\b{re.escape(ini)}\b", f.name):
-            if droog:
-                uit.append(f"zou verplaatsen naar _verwerkt/setup-test: {f.name}")
-            else:
-                doel.mkdir(parents=True, exist_ok=True)
-                shutil.move(str(f), str(doel / f.name))
-                uit.append(f"verplaatst: {f.name}")
+    for inbox, doel in inboxen(m):
+        if not inbox.is_dir():
+            continue
+        for f in list(inbox.rglob("*")):
+            if f.is_file() and re.search(rf"\bTEST\b.*\b{re.escape(ini)}\b", f.name):
+                if droog:
+                    uit.append(f"zou verplaatsen naar _verwerkt/setup-test: {f.name}")
+                else:
+                    doel.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(f), str(doel / f.name))
+                    uit.append(f"verplaatst: {f.name}")
     return uit or ["geen testbestanden"]
 
 
@@ -1447,7 +1772,7 @@ def rapport(m, ini, droog, andere_pc, uit):
         wie = sorted({x["wie"] for x in r["punten"] if x["status"] in ("fout", "open")} - {"wizard"})
         md.append(f"| {label(r)} | {TEKEN[r['status']]} {WOORD[r['status']]} | {r['uitslag']} | {', '.join(wie) or '-'} |")
     vragen = {"toestel": "iPhone of Android?", "granola": "Neem je online meetings op met Granola?",
-              "plaud": "Heb jij het Plaud-toestel?", "opnemen": "Neem je gesprekken aan tafel op met de laptop?",
+              "opnemen": "Neem je gesprekken aan tafel op met de laptop?",
               "whatsapp": "Wil je werkchats uit WhatsApp laten meelezen?"}
     zelf = [f"Vraag: {vragen.get(v, v)}" for v in c["vragen"]]
     for x in c["punten"]:
@@ -1520,10 +1845,11 @@ def main():
     ap.add_argument("--minuten", type=int, default=10)
     ap.add_argument("--uit")
     ap.add_argument("--geen-browser", action="store_true", help="checklist: de pagina niet zelf openen (tests)")
-    ap.add_argument("--inplannen", action="store_true", help="W2: taak ook inplannen als flow 07 in proef staat (tester)")
+    ap.add_argument("--inplannen", action="store_true", help="W2, R2, V1: taak ook inplannen als de flow in proef staat (tester)")
+    ap.add_argument("--ja", action="store_true", help="R2, V1: de gebruiker zei ja op het inplannen")
     a = ap.parse_args()
-    global INPLANNEN
-    INPLANNEN = a.inplannen
+    global INPLANNEN, JA
+    INPLANNEN, JA = a.inplannen, a.ja
     m = manifest()
     if a.cmd == "checklist":
         print(json.dumps(checklist(m, a.minuten if a.minuten != 10 else 30, not a.geen_browser), indent=1, ensure_ascii=False))

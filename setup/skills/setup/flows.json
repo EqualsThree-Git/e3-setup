@@ -1,6 +1,6 @@
 {
-  "versie": "2.0",
-  "bijgewerkt": "2026-11-26",
+  "versie": "2.1",
+  "bijgewerkt": "2026-11-27",
   "uitleg": "Enige plek waar staat wat de wizard aansluit. Een flow die rijp is, zet je hier van 'proef' of 'dicht' op 'vrij'; de wizard zelf verandert dan niet. vrijgave: vrij = alles aansluiten en inplannen, proef = voorbereiden en testen maar geen taak inplannen, dicht = enkel tonen wat ontbreekt. Namen, adressen en de webapp staan niet hier (de repo is publiek) maar in paden.config op de shared drive; de wizard voegt die samen.",
   "domein": "equalsthree.be",
   "repo_dossync": "EqualsThree-Git/e3-dossync",
@@ -12,7 +12,6 @@
     "opvang": "E3 - Finance/Dossync/opvang",
     "framework": "E3 - Finance/Framework",
     "klanten": "1. Equals Three - Clients",
-    "laptop_taak": "E3 - Finance/Dossync/opvang/geluidsrecorder - taak.md",
     "handleiding_memo": "E3 - Finance/Framework/05 Handleidingen/Memo naar de inbox (iPhone en Android).md",
     "handleiding_foto": "E3 - Finance/Framework/05 Handleidingen/Foto of visitekaartje naar de inbox.md",
     "handleiding_whatsapp": "E3 - Finance/Framework/05 Handleidingen/WhatsApp-bericht naar de inbox.md",
@@ -246,11 +245,12 @@
     {
       "id": "P1",
       "flow": "04",
-      "titel": "Plaud aanmelden",
-      "soort": "gebruiker",
-      "geldt": "plaud",
-      "controle": "Token in %USERPROFILE%\\.plaud en Documents\\Plaud aanwezig",
-      "gebruiker": "Meld je in de browser die opengaat aan op het Plaud-account van het toestel en klik Authorize.",
+      "titel": "Plaud op de ophaal-laptop",
+      "soort": "pc",
+      "geldt": "plaud_ophaler",
+      "controle": "plaud",
+      "actie": "De Plaud-connector toevoegen voor alle sessies (claude mcp add -s user plaud -- npx -y @plaud-ai/mcp@latest), Documents\\Opnames E3 aanmaken (daarin haalt Plaud op) en na de aanmelding plaud.py test draaien (moet 'Plaud-token werkt' geven). Enkel op de laptop van {ophaler}: één gedeeld account, twee ophalers halen alles dubbel binnen.",
+      "gebruiker": "Start een nieuwe sessie in Claude Code, zodat de Plaud-connector laadt, en zeg 'verder met de setup'. Claude opent dan de aanmelding van Plaud: meld je in de browser aan op het gedeelde Plaud-account en klik Authorize.",
       "wie": "jij"
     },
     {
@@ -258,21 +258,44 @@
       "flow": "05",
       "titel": "Lokaal uitschrijven",
       "soort": "pc",
-      "geldt": "opnemen",
+      "geldt": "opnames",
       "controle": "transcript",
-      "actie": "faster-whisper installeren, de uitvoermap op Documents\\Transcripts zetten (nooit in de brain) en een proefopname van een halve minuut uitschrijven om het tempo te meten",
+      "actie": "tools:transcript instellen met setup.py (Python-pakketten, faster-whisper, het model, GPU of CPU gemeten), Documents\\Opnames E3 (de opnamemap) en Documents\\Transcripts aanmaken (transcripts nooit in de brain) en een proefopname van een halve minuut uitschrijven om het tempo te meten. De Geluidsrecorder hoeft niet omgezet te worden: de opvang verhuist elke opname uit Documents\\Sound Recordings naar de opnamemap.",
       "gebruiker": "Windows vraagt toestemming voor een installatie of blokkeert een bestand (Smart App Control): klik Toestaan.",
       "wie": "jij"
     },
     {
       "id": "R2",
       "flow": "05",
-      "titel": "Laptoptaak opnames",
+      "titel": "Opnames-taken",
       "soort": "taak",
+      "geldt": "opnames",
+      "controle": "Twee Windows-taken via plan-opnames.ps1 van dossync, enkel als de gebruiker aangemeld is: 'E3 Dossync opnames wachter {INI}' (start bij het aanmelden, kijkt elke 20 s in Documents\\Opnames E3 en Sound Recordings en toont per nieuwe opname van meer dan 10 s een pop-up: Transcriberen, Wacht op run, Negeer; na 15 s zonder keuze Wacht op run) en 'E3 Dossync opnames {INI}' (elk uur van 8u25 tot 20u25: Plaud ophalen op de ophaal-laptop, wat wacht op de run, leidraden, uitgeschreven of genegeerde audio na 30 dagen naar de Prullenbak). Het transcript gaat naar de lokale inbox Documents\\E3 Inbox\\inbox, nooit naar de gedeelde drive; geen samenvatting, geen model. Vereist tools 2.25 of later, dossync 2.6 of later en R1 ok. Pas inplannen na een ja.",
+      "noteer": "taak.opnames",
+      "nakijken": "opnames_taken",
+      "gebruiker": "Laat de laptop aan tijdens kantooruren. Komt er een pop-up bij een nieuwe opname: Transcriberen, Wacht op run (ook als je niets kiest) of Negeer.",
+      "wie": "wizard"
+    },
+    {
+      "id": "R3",
+      "flow": "05",
+      "titel": "Proefopname",
+      "soort": "gebruiker",
       "geldt": "opnemen",
-      "controle": "Geplande taak in Claude Desktop 'Dossync opnames {INI}', elk uur van 8u tot 20u, prompt uit opvang/geluidsrecorder - taak.md met {INI} en het pad naar de transcript-skill.",
-      "noteer": "taak.laptop",
-      "gebruiker": "Laat de laptop aan tijdens kantooruren; de taak draait enkel als hij aan staat.",
+      "controle": "Binnen een kwartier staat in de lokale inbox Documents\\E3 Inbox\\inbox een item met 'TEST proef {INI}' in de naam, met in de kop 'samenvatting: nog niet' en een kop '## Transcript'.",
+      "gebruiker": "Neem met de app Geluidsrecorder iets langer dan 10 seconden op. Wijzig meteen na het stoppen (binnen een minuut) de naam: rechtermuisknop op de opname › Naam wijzigen › 'TEST proef {INI}'. Binnen twee minuten komt een pop-up: klik binnen 15 seconden op Transcriberen.",
+      "wie": "jij"
+    },
+    {
+      "id": "V1",
+      "flow": "05",
+      "titel": "Eigen verwerker",
+      "soort": "taak",
+      "geldt": "lokale_inbox",
+      "controle": "Windows-taak 'E3 Dossync verwerker' via plan-verwerker.ps1 van dossync, elke dag om 7u20 en 12u50: /dossync:verwerker met claude -p leest de lokale inbox Documents\\E3 Inbox\\inbox (opnames, WhatsApp-chats, leidraden) en de gedeelde Dossync › inbox, en zet enkel wat relevant is als voorstel in E3 Daily. Persoonlijke bronnen komen nooit op de gedeelde drive, dus enkel een verwerker op deze laptop ziet ze. Vereist dossync 2.6 of later, E3CRM-toegang (A7) en claude -p aangemeld op {mail}. Pas inplannen na een ja.",
+      "noteer": "taak.verwerker",
+      "nakijken": "verwerker_taak",
+      "gebruiker": "Laat de laptop aan tijdens kantooruren. Vraagt de wizard het: voer in een terminal 'claude auth login' uit en meld je aan met {mail}.",
       "wie": "wizard"
     },
     {
@@ -397,22 +420,26 @@
       "id": "04",
       "naam": "Plaud",
       "stappen": [
-        "P1"
+        "P1",
+        "R2",
+        "V1"
       ],
-      "vrijgave": "dicht",
-      "reden": "Het ophaalscript van flow 04 bestaat nog niet; de laptoptaak verwerkt Plaud pas als Documents\\Plaud gevuld wordt.",
-      "test": "Token aanwezig en de Plaud-connector geeft get_current_user."
+      "vrijgave": "proef",
+      "reden": "plaud.py haalt op via de Plaud Open API in Documents\\Opnames E3 (getest op het echte account, 27/11); de opnames-taken en de eigen verwerker staan nog nergens via de wizard ingepland.",
+      "test": "Op de ophaal-laptop: Plaud-connector in Claude Code, token in %USERPROFILE%\\.plaud\\tokens-mcp.json, plaud.py test geeft 'Plaud-token werkt', Documents\\Opnames E3 bestaat."
     },
     {
       "id": "05",
-      "naam": "Geluidsrecorder",
+      "naam": "Geluidsrecorder en leidraden",
       "stappen": [
         "R1",
-        "R2"
+        "R2",
+        "R3",
+        "V1"
       ],
       "vrijgave": "proef",
-      "reden": "De laptoptaak is nog nergens gedraaid en de transcript-skill met inbox.py is nog niet uitgerold.",
-      "test": "Proefopname uitgeschreven met de gemeten snelheid; transcript-skill heeft inbox.py; Documents\\Sound Recordings en Documents\\Transcripts bestaan."
+      "reden": "De opnames-taken van dossync 2.6 (wachter en uurrun) en de eigen verwerker staan nog nergens via de wizard ingepland.",
+      "test": "Proefopname uitgeschreven met de gemeten snelheid; transcript-skill heeft inbox.py; Documents\\Opnames E3 en Documents\\Transcripts bestaan; wachter, uurrun en eigen verwerker ingepland; na de proefopname een item 'TEST proef {INI}' met een transcript in de lokale inbox Documents\\E3 Inbox."
     },
     {
       "id": "06",
@@ -429,10 +456,11 @@
       "naam": "WhatsApp",
       "stappen": [
         "W1",
-        "W2"
+        "W2",
+        "V1"
       ],
       "vrijgave": "proef",
-      "test": "Lezer gekoppeld en lijst Equals Three binnen; een droge sweep geeft per chat met nieuwe berichten een item.",
+      "test": "Lezer gekoppeld en lijst Equals Three binnen; een droge sweep geeft per chat met nieuwe berichten een item; de chats komen in de lokale inbox Documents\\E3 Inbox en de eigen verwerker leest ze.",
       "reden": "De lezer en de uurlijkse sweep draaien sinds 26/11 bij een eerste gebruiker; vrij na een week zonder fouten in de runlog."
     },
     {
@@ -518,6 +546,6 @@
       "test": "De app toont 'verbonden' en een testnotitie landt in je My Drive › E3 Tools › Inbox."
     }
   ],
-  "paden_noot": "e3crm_toegang: gedeelde kopie van de E3CRM-toegang (url en token) op een drive met enkel het team en tools@. De wizard neemt ze stil over in ~/.claude/e3crm.json, ook na een rotatie, en toont of logt de inhoud nooit. config: de interne configuratie (personen, webapp, geweigerde adressen, uren), niet in deze publieke repo.",
+  "paden_noot": "e3crm_toegang: gedeelde kopie van de E3CRM-toegang (url en token) op een drive met enkel het team en tools@. De wizard neemt ze stil over in ~/.claude/e3crm.json, ook na een rotatie, en toont of logt de inhoud nooit. config: de interne configuratie (personen, webapp, geweigerde adressen, uren), niet in deze publieke repo. plaud_ophaler (in de config): de initialen van de enige laptop die Plaud ophaalt. De lokale inbox (Documents\\E3 Inbox) staat niet in paden: ze ligt op de laptop, niet op de drive.",
   "beheerder": "de beheerder van de gedeelde drive E3 - Finance"
 }
