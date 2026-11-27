@@ -303,9 +303,9 @@
       "flow": "06",
       "titel": "Memo vanaf de gsm",
       "soort": "gebruiker",
-      "geldt": "iphone",
+      "geldt": "altijd",
       "controle": "Een bestand met 'TEST memo {INI}' in de naam verschijnt binnen tien minuten in Dossync › inbox, met {mail} als eigenaar",
-      "gebruiker": "Zet op je iPhone de Google Drive-app, aangemeld met {mail}. Dicteer in Notities één zin: 'TEST memo {INI}, dit is een test.' en deel de notitie naar de Drive-app, map E3 - Finance › Dossync › inbox.",
+      "gebruiker": "Zet op je gsm de Google Drive-app, aangemeld met {mail}. Dicteer in Notities één zin: 'TEST memo {INI}, dit is een test.' en deel de notitie naar de Drive-app, map E3 - Finance › Dossync › inbox.",
       "wie": "jij"
     },
     {
@@ -335,7 +335,7 @@
       "flow": "09",
       "titel": "Foto vanaf de gsm",
       "soort": "gebruiker",
-      "geldt": "iphone",
+      "geldt": "altijd",
       "controle": "Een bestand met 'TEST kaartje {INI}' in de naam verschijnt binnen tien minuten in Dossync › inbox, met {mail} als eigenaar",
       "gebruiker": "Open de Drive-app › Gedeelde drives › E3 - Finance › Dossync › inbox › plus › Scannen. Scan je eigen visitekaartje en bewaar het als 'TEST kaartje {INI}'.",
       "wie": "jij"
@@ -372,16 +372,6 @@
       "noteer": "daily_ontvanger",
       "gebruiker": "Zet {INI} in de Script Property DAILY_ONTVANGERS van E3CRM (Apps Script › Projectinstellingen), gescheiden door ;.",
       "wie": "tools@"
-    },
-    {
-      "id": "E1",
-      "flow": "13",
-      "titel": "E3 Tools-app op de gsm",
-      "soort": "gebruiker",
-      "geldt": "altijd",
-      "controle": "De eigen Apps Script-koppeling 'E3 Tools' bestaat in je Google-account (script.google.com) en de app op de gsm toont 'verbonden'. Handleiding in de repo E3-toolsapp (docs/installatie-iphone.md, installatie-android.md).",
-      "gebruiker": "Volg docs/installatie-iphone.md van de E3 Tools-app (stap 1 en 2 op de laptop, stap 3 op de gsm).",
-      "wie": "jij"
     }
   ],
   "flows": [
@@ -534,16 +524,6 @@
       "vrijgave": "dicht",
       "reden": "E3CRM kent de acties correctie.maak, correctie.lijst en correctie.zet nog niet; de retro draait pas na de volgende deploy.",
       "test": "De routine 'Retro' bestaat bij de eigenaar en een proefrun van /tools:retro (voorbereiden) geeft tellers uit E3CRM."
-    },
-    {
-      "id": "13",
-      "naam": "E3 Tools-app",
-      "stappen": [
-        "E1"
-      ],
-      "vrijgave": "dicht",
-      "reden": "De iPhone-app gaat via TestFlight en dat vraagt een Apple Developer-account van E3; Android vraagt een apk die nog niet zonder hulp te installeren is.",
-      "test": "De app toont 'verbonden' en een testnotitie landt in je My Drive › E3 Tools › Inbox."
     }
   ],
   "paden_noot": "e3crm_toegang: gedeelde kopie van de E3CRM-toegang (url en token) op een drive met enkel het team en tools@. De wizard neemt ze stil over in ~/.claude/e3crm.json, ook na een rotatie, en toont of logt de inhoud nooit. config: de interne configuratie (personen, webapp, geweigerde adressen, uren), niet in deze publieke repo. plaud_ophaler (in de config): de initialen van de enige laptop die Plaud ophaalt. De lokale inbox (Documents\\E3 Inbox) staat niet in paden: ze ligt op de laptop, niet op de drive.",

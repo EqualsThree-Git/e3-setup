@@ -359,7 +359,7 @@ _, _, uit = checklist_post([{"mail": "nieuw@equalsthree.be", "naam": "Nieuwe Col
 c = w(env, "controleer")
 check("partner die het framework beheert: retro geldt", punt(c, "RT1")["status"] != "nvt" and c["persoon"]["eigenaar"] is True)
 check("WhatsApp ja: W1 geldt", punt(c, "W1")["status"] != "nvt")
-check("E3 Tools-app staat dicht met reden", punt(c, "E1")["status"] == "dicht" and "Apple" in punt(c, "E1")["detail"])
+check("geen gsm-app meer: E1 bestaat niet, memo en foto gelden voor elke gsm", all(p["id"] != "E1" for p in c["punten"]) and punt(c, "T1")["status"] != "nvt" and punt(c, "F1")["status"] != "nvt")
 
 ws = t / "drive/My Drive/Claude workspace"
 runs = t / "drive/Shared drives/E3 - Finance/Dossync/opvang/runs"
