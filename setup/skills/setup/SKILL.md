@@ -146,6 +146,7 @@ Een tweede start doet hetzelfde: `controleer` zegt wat klopt, `doe` slaat een st
 ## Voor de beheerder
 
 - Een flow vrijgeven = in `flows.json` `vrijgave` op `vrij` zetten (repo e3-setup). De wizard verandert niet.
+- Staat webapp 1.12 live (de versie in `dossync-status.json`), zet dan `webapp_versie_in_status` in `flows.json` op true: M1 vraagt dan iedereen zonder versie of onder 1.11 de webapp één keer te openen.
 - Personen, de webapp, `webapp_gebruikers`, `geweigerd` en `uren_nieuw` staan in `Framework › 10 Flows › setup-config.json` op E3 - Finance, nooit in de repo (die is publiek).
 - Testen op een kale pc: `sandbox\start-sandbox.ps1` in de repo maakt een Windows Sandbox met de repo en een logmap.
 - De uren van de cloudtaken zijn voor iedereen dezelfde en staan in `Dossync › dienstregeling.json`; `uren_nieuw` en `dossync_uren` in de config gebruikt de wizard niet meer voor de taken. Wie bij het team hoort, staat op de persoonsfiche in E3CRM (A7). `webapp_gebruikers` is tijdelijk, tot de webapp die fiche leest.

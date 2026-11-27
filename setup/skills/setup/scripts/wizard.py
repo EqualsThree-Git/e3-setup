@@ -392,11 +392,13 @@ def c_webapp(m, ini, p, st):
     detail = f"actief (status {g:%d/%m %H:%M}); laatste run {lr or 'nog geen'}"
     # De versie in de status is die waarmee de triggers gezet werden: onder 1.11 lopen nog de twee oude triggers. De
     # webapp zet ze om zodra de gebruiker ze opent (of op Dossync activeren klikt).
+    # Sinds webapp 1.12 staat de versie in de status; een gebruiker krijgt ze pas als hij na de deploy de webapp opent.
+    # Zolang 1.12 niet live is, schrijft niemand het veld: dan geldt een lege versie niet als fout (webapp_versie_in_status).
     v = s.get("versie")
     nrs = tuple(int(n) for n in re.findall(r"\d+", str(v or ""))) if v else None
-    if nrs and nrs < WEBAPP_MIN:
-        return False, (f"de webapp draait nog met de twee oude triggers (versie {v}): open de link één keer, dan zet ze "
-                       f"zichzelf om naar één trigger per kwartier")
+    if (nrs and nrs < WEBAPP_MIN) or (not nrs and m.get("webapp_versie_in_status")):
+        return False, (f"de webapp draait nog met de oude triggers (versie {v or 'onbekend'}): open de link één keer, dan zet "
+                       f"ze zichzelf om naar één trigger per kwartier")
     return True, detail + (f"; versie {v}, één trigger per kwartier" if nrs else "; de status zegt nog niet met welke versie de triggers staan")
 
 

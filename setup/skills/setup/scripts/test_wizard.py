@@ -597,6 +597,15 @@ status.write_text(json.dumps({"gebruiker": "JDS", "geschreven": nu, "versie": "1
 c = w(env, "controleer", "--ini", "JDS")
 check("M1 fout met de oude triggers: de webapp één keer openen", punt(c, "M1")["status"] == "fout" and "oude triggers" in punt(c, "M1")["detail"]
       and "/a/macros/" not in punt(c, "M1")["gebruiker"] or "volledige link" in punt(c, "M1")["gebruiker"], punt(c, "M1"))
+status.write_text(json.dumps({"gebruiker": "JDS", "geschreven": nu}), encoding="utf-8")
+c = w(env, "controleer", "--ini", "JDS")
+check("M1 zonder versie ok zolang 1.12 niet live is", punt(c, "M1")["status"] == "ok" and "nog niet met welke versie" in punt(c, "M1")["detail"], punt(c, "M1"))
+fl = HERE.parent / "flows.json"
+check("schakelaar webapp_versie_in_status staat nog uit", json.loads(fl.read_text(encoding="utf-8"))["webapp_versie_in_status"] is False)
+cfg2 = t / "config-1.12.json"
+cfg2.write_text(json.dumps(dict(CONFIG, webapp_versie_in_status=True)), encoding="utf-8")
+c = w(dict(env, E3_SETUP_CONFIG=str(cfg2)), "controleer", "--ini", "JDS")
+check("met de schakelaar aan: lege versie = de webapp één keer openen", punt(c, "M1")["status"] == "fout" and "open de link" in punt(c, "M1")["detail"], punt(c, "M1"))
 status.write_text(json.dumps({"gebruiker": "JDS", "geschreven": nu, "versie": "1.11"}), encoding="utf-8")
 c = w(env, "controleer", "--ini", "JDS")
 check("M1 ok op versie 1.11", punt(c, "M1")["status"] == "ok" and "één trigger per kwartier" in punt(c, "M1")["detail"], punt(c, "M1"))

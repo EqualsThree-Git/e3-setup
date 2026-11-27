@@ -4,6 +4,8 @@
   "uitleg": "Enige plek waar staat wat de wizard aansluit. Een flow die rijp is, zet je hier van 'proef' of 'dicht' op 'vrij'; de wizard zelf verandert dan niet. vrijgave: vrij = alles aansluiten en inplannen, proef = voorbereiden en testen maar geen taak inplannen, dicht = enkel tonen wat ontbreekt. Namen, adressen en de webapp staan niet hier (de repo is publiek) maar in paden.config op de shared drive; de wizard voegt die samen.",
   "domein": "equalsthree.be",
   "repo_dossync": "EqualsThree-Git/e3-dossync",
+  "webapp_versie_in_status": false,
+  "webapp_versie_uitleg": "Op true zetten zodra webapp 1.12 live is (zet 'versie' in dossync-status.json). Dan geldt bij M1 een lege versie of een versie onder 1.11 als 'open de webapp één keer'. Zolang 1.12 niet live is, schrijft niemand het veld en blijft een lege versie ok.",
   "paden": {
     "finance": "E3 - Finance",
     "inbox": "E3 - Finance/Dossync/inbox",
