@@ -7,6 +7,7 @@ Wat het moet aansluiten staat in ../flows.json, niet in dit script.
     python wizard.py controleer [--ini JDS] [--andere-pc]        stand per stap, JSON, schrijft niets
     python wizard.py doe STAP --ini JDS [--droog]                de automatische actie van een pc-stap
     python wizard.py doe R2|V1 --ini JDS --ja [--inplannen]      wachter of E3 run inplannen (dienstregeling), enkel na een ja
+    python wizard.py doe B2 --ini JDS --ja                       oude bijlagen uit de root van My Drive naar de wachtrij, na een ja
     python wizard.py noteer SLEUTEL JSON --ini JDS [--droog]     wat Claude vaststelde (connector, taak, antwoord, test)
     python wizard.py wacht TEKST --ini JDS [--minuten 10]        wacht tot een testbestand in de inbox staat
     python wizard.py opruimen --ini JDS [--droog]                testbestanden van INI naar _verwerkt/setup-test
@@ -184,6 +185,11 @@ def vul(tekst, m, ini, p, **extra):
          "webapp": m["webapp"] or "de webapp (de link staat in de config op E3 - Finance; eerst Google Drive voor desktop)",
          "beheerder": m["beheerder"], "uren": " en ".join(p.get("dossync_uren") or []),
          "connector": "de connector met een ✗", "ketting": ", ".join(plaud_ketting(m)) or "de ketting in Dossync › regels.json"}
+    if "{ochtend" in (tekst or "") or "{mailrun" in (tekst or ""):   # cloudtaken uit de dienstregeling (ritme 3)
+        for k in ("ochtend", "mailrun"):
+            u = uren(m, k)
+            w.update({k: taaknaam(m, k, ini), f"{k}_uren": " en ".join(uur_nl(x) for x in u),
+                      f"{k}_cron": cron(u)})
     w.update(extra)
     return re.sub(r"\{(\w+)\}", lambda x: str(w.get(x.group(1), x.group(0))), tekst or "")
 
@@ -313,8 +319,58 @@ def c_rechten(m, ini, p, st):
 
 def c_profiel(m, ini, p, st):
     prof = lees_json(PROFIEL, {}) or {}
-    ok = prof.get("initialen") == ini and prof.get("mailbox") == p.get("mail")
-    return ok, f"e3-shared.json: initialen {prof.get('initialen') or '-'}, mailbox {prof.get('mailbox') or '-'}"
+    my, _ = drives()
+    w = prof.get("wachtrij")
+    w_ok = not my or bool(w and not wachtrij_is_root(w))
+    ok = prof.get("initialen") == ini and prof.get("mailbox") == p.get("mail") and w_ok
+    return ok, (f"e3-shared.json: initialen {prof.get('initialen') or '-'}, mailbox {prof.get('mailbox') or '-'}, "
+                f"wachtrij {w or '-'}" + ("" if w_ok else " (moet My Drive › E3Brain persoonlijk › wachtrij zijn)"))
+
+
+def wachtrij_is_root(w):
+    """De oude wachtrij: de root van My Drive zelf."""
+    return pathlib.Path(w).name.lower() in ("my drive", "mijn drive")
+
+
+def wachtrij_map(my):
+    """De bijlagen-wachtrij van route-queue: My Drive › E3Brain persoonlijk › wachtrij (sinds 27/11, webapp 1.11)."""
+    return my / "E3Brain persoonlijk" / "wachtrij" if my else None
+
+
+def bijlagen_log(my):
+    """(pad van _Uit mail/bijlagen.json, in_de_wachtrij). Eerst in de wachtrij, dan nog in de root van My Drive (overgang:
+    het Apps Script verhuist het logboek bij zijn eerste run met de code van 1.11)."""
+    if not my:
+        return None, False
+    nieuw = wachtrij_map(my) / "_Uit mail" / "bijlagen.json"
+    if nieuw.is_file():
+        return nieuw, True
+    oud = my / "_Uit mail" / "bijlagen.json"
+    return (oud, False) if oud.is_file() else (None, False)
+
+
+def c_bijlagen(m, ini, p, st):
+    my, _ = drives()
+    log, nieuw = bijlagen_log(my)
+    b = lees_json(log, None) if log else None
+    if not b:
+        return False, "geen _Uit mail/bijlagen.json in My Drive › E3Brain persoonlijk › wachtrij: de bijlagen-inname staat niet aan"
+    t = iso(b.get("laatsteRun"))
+    venster = 1800 if 6 <= NU.hour < 22 else 9 * 3600
+    if not t or (NU - t).total_seconds() > venster:
+        return False, f"bijlagen.json laatst bijgewerkt {b.get('laatsteRun')}"
+    n = len(b.get("items") or [])
+    w = wachtrij_map(my)
+    wachtrij = [f for f in w.iterdir() if f.is_file()] if w and w.is_dir() else []
+    oudste = min((f.stat().st_mtime for f in wachtrij), default=None)
+    extra = f"; {len(wachtrij)} bestanden in de wachtrij" + (
+        f", oudste {dt.datetime.fromtimestamp(oudste):%d/%m}" if oudste else "")
+    if not nieuw:
+        extra += "; het logboek staat nog in de root van My Drive (de webapp draaide nog niet met versie 1.11)"
+    return True, f"bijgewerkt {t.astimezone():%d/%m %H:%M}, {n} items{extra}"
+
+
+WEBAPP_MIN = (1, 11)   # één trigger per kwartier, de wachtrij in E3Brain persoonlijk
 
 
 def c_webapp(m, ini, p, st):
@@ -333,24 +389,79 @@ def c_webapp(m, ini, p, st):
     if not g or (NU - g).total_seconds() > 1800:
         return False, f"verwerking niet actief: status laatst geschreven {s.get('geschreven')}"
     lr = s.get("laatsteRun")
-    return True, f"actief (status {g:%d/%m %H:%M}); laatste run {lr or 'nog geen'}"
+    detail = f"actief (status {g:%d/%m %H:%M}); laatste run {lr or 'nog geen'}"
+    # De versie in de status is die waarmee de triggers gezet werden: onder 1.11 lopen nog de twee oude triggers. De
+    # webapp zet ze om zodra de gebruiker ze opent (of op Dossync activeren klikt).
+    v = s.get("versie")
+    nrs = tuple(int(n) for n in re.findall(r"\d+", str(v or ""))) if v else None
+    if nrs and nrs < WEBAPP_MIN:
+        return False, (f"de webapp draait nog met de twee oude triggers (versie {v}): open de link één keer, dan zet ze "
+                       f"zichzelf om naar één trigger per kwartier")
+    return True, detail + (f"; versie {v}, één trigger per kwartier" if nrs else "; de status zegt nog niet met welke versie de triggers staan")
 
 
-def c_bijlagen(m, ini, p, st):
+def c_wachtrij_oud(m, ini, p, st):
+    """B2: staat er in de root van My Drive nog iets uit de tijd dat dat de wachtrij was?"""
+    ok, detail, _ = wachtrij_oud(m)
+    return ok, detail
+
+
+def wachtrij_oud(m):
+    """(ok, detail, lijst van wachtrij.py verhuis) voor de oude wachtrij in de root van My Drive."""
     my, _ = drives()
-    b = lees_json(my / "_Uit mail" / "bijlagen.json", None) if my else None
-    if not b:
-        return False, "geen _Uit mail/bijlagen.json in My Drive: de bijlagen-inname staat niet aan"
-    t = iso(b.get("laatsteRun"))
-    venster = 1800 if 6 <= NU.hour < 22 else 9 * 3600
-    if not t or (NU - t).total_seconds() > venster:
-        return False, f"bijlagen.json laatst bijgewerkt {b.get('laatsteRun')}"
-    n = len(b.get("items") or [])
-    wachtrij = [f for f in my.iterdir() if f.is_file()] if my else []
-    oudste = min((f.stat().st_mtime for f in wachtrij), default=None)
-    extra = f"; {len(wachtrij)} bestanden in de wachtrij" + (
-        f", oudste {dt.datetime.fromtimestamp(oudste):%d/%m}" if oudste else "")
-    return True, f"bijgewerkt {t.astimezone():%d/%m %H:%M}, {n} items{extra}"
+    if not my:
+        return None, "My Drive niet zichtbaar (eerst A2)", None
+    sc = dossync_scripts("route-queue")
+    if not sc or not (sc / "wachtrij.py").is_file():
+        return False, "wachtrij.py niet gevonden: eerst A3 (dossync 2.11 of later)", None
+    try:
+        r = subprocess.run([sys.executable, "-I", str(sc / "wachtrij.py"), "verhuis"], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=120)
+        d = dic(json.loads(r.stdout))
+    except Exception as e:
+        return False, f"wachtrij.py verhuis liep niet ({e.__class__.__name__})", None
+    if d.get("logboek") or not bijlagen_log(my)[1]:
+        return None, ("wacht tot de webapp met versie 1.11 draaide: het logboek _Uit mail staat nog in de root van My Drive "
+                      "(het Apps Script verhuist het zelf bij zijn eerste run)"), d
+    n = len(d.get("mee") or []) + len(d.get("dubbel_naar_te_verwijderen") or []) + int(dic(d.get("te_verwijderen_map")).get("aantal") or 0)
+    blijft = len(d.get("blijft_staan") or [])
+    if n:
+        return False, f"nog {n} bestanden van de oude wachtrij in de root van My Drive: doe B2", d
+    return True, "de root van My Drive heeft geen bijlagen meer" + (f" ({blijft} eigen bestanden of mappen blijven staan)" if blijft else ""), d
+
+
+def a_verhuis(m, ini, p, st, droog):
+    """B2: wachtrij.py verhuis van route-queue. Eerst de lijst, pas na een ja (--ja) verplaatsen, met een log in de werkmap."""
+    ok, detail, d = wachtrij_oud(m)
+    if ok:
+        return [f"klopt al, overgeslagen: {detail}"]
+    if d is None or ok is None:
+        return [detail]
+    my, _ = drives()
+    namen = [x.get("naam") for x in (d.get("mee") or [])] + [f"{x.get('naam')} (kopie, naar _Te verwijderen)" for x in (d.get("dubbel_naar_te_verwijderen") or [])]
+    tv = int(dic(d.get("te_verwijderen_map")).get("aantal") or 0)
+    if tv:
+        namen.append(f"de map _Te verwijderen ({tv} bestanden)")
+    prof = lees_json(PROFIEL, {}) or {}
+    logmap = pathlib.Path(prof.get("routeLog") or pathlib.Path(prof.get("werkmap") or my / "Claude workspace") / "_route-queue-log")
+    log = logmap / f"{NU:%y%m%d}-route-queue.md"   # dezelfde move-log als route-queue (routeLog in e3-shared.json)
+    lijst = "; ".join(namen[:15]) + (f"; en nog {len(namen) - 15}" if len(namen) > 15 else "")
+    if droog:
+        return [f"zou na een ja naar My Drive › E3Brain persoonlijk › wachtrij verhuizen: {lijst}",
+                f"zou loggen in {log}"]
+    if not JA:
+        return [f"VRAAG: mag ik deze {len(namen)} bestanden uit de root van My Drive naar E3Brain persoonlijk › wachtrij "
+                f"verhuizen? {lijst}. Na ja: wizard.py doe B2 --ja"]
+    log.parent.mkdir(parents=True, exist_ok=True)
+    sc = dossync_scripts("route-queue")
+    r = subprocess.run([sys.executable, "-I", str(sc / "wachtrij.py"), "verhuis", "--ja", "--log", str(log)], capture_output=True,
+                       text=True, encoding="utf-8", errors="replace", timeout=600)
+    try:
+        u = dic(json.loads(r.stdout))
+    except Exception:
+        return [f"verhuizen mislukt: {(r.stderr or r.stdout).strip()[:200]}"]
+    niet = [x.get("bron") for x in (u.get("resultaten") or []) if x.get("resultaat") != "verplaatst"]
+    return [f"{u.get('verplaatst', 0)} verhuisd, log in {log}"] + ([f"niet bevestigd: {', '.join(niet[:10])}"] if niet else [])
 
 
 def transcript_skill():
@@ -411,6 +522,8 @@ DIENST_STANDAARD = {   # enkel als dienstregeling.json niet zichtbaar is (nog ge
     "run": {"naam": "E3 run <INI>", "wanneer": "07:20 en 12:50 op werkdagen"},
     "whatsapp-live": {"naam": "E3 WhatsApp-live <INI>",
                       "wanneer": "bij het aanmelden, bij elk nieuw bericht, vangnet elke minuut; items elk uur"},
+    "ochtend": {"naam": "E3 ochtend <INI>", "wanneer": "07:00 op werkdagen"},
+    "mailrun": {"naam": "E3 Dossync mailrun <INI>", "wanneer": "12:00 en 16:00 op werkdagen"},
 }
 OUDE_TAKEN = {"wachter": ["E3 Dossync opnames <INI>"], "run": ["E3 Dossync verwerker"], "whatsapp-live": ["E3 WhatsApp-sweep <INI>"]}
 DIENST_STAP = {"wachter": "R2", "run": "V1", "whatsapp-live": "W2"}
@@ -419,7 +532,7 @@ DIENST_STAP = {"wachter": "R2", "run": "V1", "whatsapp-live": "W2"}
 def dienst(m, id_):
     """De taak uit dienstregeling.json (naam, wanneer, model, ...), aangevuld met de standaard."""
     q = pad(m, "dienstregeling") if m["paden"].get("dienstregeling") else None
-    d = dic(lees_json(q, {}) if q else {})
+    d = dic(lees_buffer(q))
     t = next((x for x in (d.get("taken") or []) if isinstance(x, dict) and x.get("id") == id_), None)
     return {**DIENST_STANDAARD.get(id_, {}), **(t or {})}
 
@@ -430,7 +543,33 @@ def taaknaam(m, id_, ini):
 
 def uren(m, id_):
     """De kloktijden uit 'wanneer' van de dienstregeling, bv. ['07:20', '12:50']."""
-    return re.findall(r"\b\d{1,2}:\d{2}\b", str(dienst(m, id_).get("wanneer") or ""))
+    return re.findall(r"\b\d{1,2}:\d{2}\b", str(dienst(m, id_).get("wanneer") or "").split("(")[0])
+
+
+def cron(tijden):
+    """['12:00', '16:00'] -> '0 12,16 * * 1-5' (werkdagen, Brusselse tijd); gelijke minuten verondersteld."""
+    if not tijden:
+        return ""
+    mins = {x.split(":")[1].lstrip("0") or "0" for x in tijden}
+    return f"{'/'.join(sorted(mins))} {','.join(str(int(x.split(':')[0])) for x in tijden)} * * 1-5"
+
+
+def uur_nl(x):
+    """'07:00' -> '7u', '12:50' -> '12u50'."""
+    h, mm = x.split(":")
+    return f"{int(h)}u{'' if mm == '00' else mm}"
+
+
+BUFFER = {}
+
+
+def lees_buffer(q):
+    """lees_json met een buffer per pad: dienstregeling.json en regels.json worden per oproep maar één keer gelezen."""
+    if not q:
+        return {}
+    if str(q) not in BUFFER:
+        BUFFER[str(q)] = lees_json(q, {}) or {}
+    return BUFFER[str(q)]
 
 
 def taken_in_planner(namen):
@@ -468,7 +607,7 @@ def nakijk(id_):
     return c
 
 
-NAKIJKEN = {k: nakijk(k) for k in DIENST_STANDAARD}
+NAKIJKEN = {k: nakijk(k) for k in DIENST_STAP}   # enkel de laptoptaken; de cloudtaken kijkt Claude na
 
 
 def versie(naam):
@@ -538,7 +677,7 @@ def claude_vereiste(p, waarvoor):
 def plaud_ketting(m):
     """De Plaud-ketting uit Dossync › regels.json, met de vrager vooraan (zoals toewijzing.py). [] zonder regels.json."""
     q = pad(m, "regels") if m["paden"].get("regels") else None
-    d = dic(lees_json(q, {}) if q else {})
+    d = dic(lees_buffer(q))
     k = [str(x).upper() for x in (dic(d.get("taak_opnemen")).get("ketting") or [])]
     v = str(dic(d.get("plaud")).get("vrager") or "").upper()
     if v and v in k:
@@ -795,6 +934,7 @@ def mappen(m):
     uit = [(k, pad(m, s), mag) for k, s, mag in (("Dossync › inbox", "inbox", False), ("Dossync › inbox › ruw", "inbox_ruw", True),
                                                  ("Dossync › opvang", "opvang", False), ("Dossync › opvang › runs", "opvang_runs", True))]
     uit.append(("My Drive › Claude workspace", my / "Claude workspace" if my else None, True))
+    uit.append(("My Drive › E3Brain persoonlijk › wachtrij", wachtrij_map(my), "diep"))
     uit.append(("My Drive › E3Brain persoonlijk › import gsm", my / "E3Brain persoonlijk" / "import gsm" if my else None, "diep"))
     return uit
 
@@ -802,7 +942,7 @@ def mappen(m):
 def c_mappen(m, ini, p, st):
     mis = [k for k, q, _ in mappen(m) if not q or not q.is_dir()]
     my, _ = drives()
-    extra = "; My Drive zelf is de wachtrij (TE VERPLAATSEN)" if my else "; My Drive niet zichtbaar"
+    extra = "; de bijlagen-wachtrij is My Drive › E3Brain persoonlijk › wachtrij" if my else "; My Drive niet zichtbaar"
     return (not mis and bool(my)), ("alle mappen aanwezig" if not mis else "ontbreekt: " + ", ".join(mis)) + extra
 
 
@@ -1090,7 +1230,8 @@ def verwerker_kent(adres):
 
 
 PC = {"programmas": c_programmas, "github": c_github, "mappen": c_mappen, "teaminstructies": c_teaminstructies, "e3crm": c_e3crm, "sleutel": c_sleutel, "laptop": c_laptop, "plugins": c_plugins, "rechten": c_rechten, "profiel": c_profiel, "webapp": c_webapp,
-      "bijlagen": c_bijlagen, "transcript": c_transcript, "whatsapp": c_whatsapp, "publiek": c_publiek, "plaud": c_plaud, "gezondheid": c_gezondheid}
+      "bijlagen": c_bijlagen, "transcript": c_transcript, "whatsapp": c_whatsapp, "publiek": c_publiek, "plaud": c_plaud, "gezondheid": c_gezondheid,
+      "wachtrij_oud": c_wachtrij_oud}
 
 
 def c_notitie(stap, st):
@@ -1281,6 +1422,8 @@ def a_profiel(m, ini, p, st, droog):
         nieuw.setdefault("drive", str(sh))
     if my:
         nieuw.setdefault("werkmap", str(my / "Claude workspace"))
+        if not prof.get("wachtrij") or wachtrij_is_root(prof["wachtrij"]):
+            nieuw["wachtrij"] = str(wachtrij_map(my))
     uit = []
     if nieuw != prof:
         uit.append(schrijf_json(PROFIEL, nieuw, droog, f"~/.claude/e3-shared.json ({', '.join(k for k in nieuw if nieuw.get(k) != prof.get(k))})"))
@@ -1646,7 +1789,7 @@ INPLANNEN = False
 JA = False
 
 ACTIES = {"A0": a_programmas, "A14": a_mappen, "A9": a_teaminstructies, "A7": a_e3crm, "A10": a_sleutel, "A11": a_sleutel_cloud, "A2": a_laptop, "A3": a_plugins, "A5": a_rechten, "A6": a_profiel, "R1": a_transcript,
-          "W1": a_whatsapp, "W2": a_whatsapp_live, "P1": a_plaud, "R2": a_opnames, "V1": a_run, "G1": a_run}
+          "W1": a_whatsapp, "W2": a_whatsapp_live, "P1": a_plaud, "R2": a_opnames, "V1": a_run, "G1": a_run, "B2": a_verhuis}
 
 
 def doe(m, ini, stap_id, droog):
@@ -1927,7 +2070,7 @@ def main():
     ap.add_argument("--uit")
     ap.add_argument("--geen-browser", action="store_true", help="checklist: de pagina niet zelf openen (tests)")
     ap.add_argument("--inplannen", action="store_true", help="W2, R2, V1: taak ook inplannen als de flow in proef staat (tester)")
-    ap.add_argument("--ja", action="store_true", help="R2, V1: de gebruiker zei ja op het inplannen")
+    ap.add_argument("--ja", action="store_true", help="R2, V1, B2: de gebruiker zei ja")
     a = ap.parse_args()
     global INPLANNEN, JA
     INPLANNEN, JA = a.inplannen, a.ja

@@ -37,7 +37,7 @@ CONFIG = {
 def opzet():
     t = pathlib.Path(tempfile.mkdtemp(prefix="e3-setup-test-"))
     root, home = t / "drive", t / "home"
-    for d in ("My Drive/Dossier-sync", "My Drive/_Uit mail", "Shared drives/E3 - Finance/Dossync/inbox/ruw",
+    for d in ("My Drive/Dossier-sync", "My Drive/E3Brain persoonlijk/wachtrij/_Uit mail", "Shared drives/E3 - Finance/Dossync/inbox/ruw",
               "Shared drives/E3 - Finance/Dossync/opvang",
               "Shared drives/E3 - Finance/Framework", "Shared drives/1. Equals Three - Clients"):
         (root / d).mkdir(parents=True)
@@ -170,7 +170,7 @@ check("nieuw adres krijgt vrije uren", c["persoon"]["dossync_uren"] == ["10:55",
 import datetime as dt
 nu = dt.datetime.now().astimezone().isoformat()
 (t / "drive/My Drive/Dossier-sync/dossync-status.json").write_text(json.dumps({"gebruiker": "JDS", "geschreven": nu}), encoding="utf-8")
-(t / "drive/My Drive/_Uit mail/bijlagen.json").write_text(json.dumps({"laatsteRun": nu, "items": []}), encoding="utf-8")
+(t / "drive/My Drive/E3Brain persoonlijk/wachtrij/_Uit mail/bijlagen.json").write_text(json.dumps({"laatsteRun": nu, "items": []}), encoding="utf-8")
 c = w(env, "controleer", "--ini", "JDS")
 check("webapp actief herkend", punt(c, "M1")["status"] == "ok", punt(c, "M1")["detail"])
 check("bijlagen-inname herkend", punt(c, "B1")["status"] == "ok", punt(c, "B1")["detail"])
@@ -306,7 +306,7 @@ inst.write_text(volledig, encoding="utf-8")
 
 c = w(env, "controleer", "--ini", "JDS")
 check("briefing-cloudtaak wordt voorbereid, niet ingepland (proef)", punt(c, "BR1")["status"] == "klaar-te-zetten")
-check("de briefing-prompt met echt staat in de stap", "echt" in punt(c, "BR1")["actie"] and "15 7 * * 1-5" in punt(c, "BR1")["actie"])
+check("de briefing-prompt met echt staat in de stap", "echt" in punt(c, "BR1")["actie"] and "0 7 * * 1-5" in punt(c, "BR1")["actie"])
 check("retro-taak voor de eigenaar (JDS) is dicht", punt(c, "RT1")["status"] == "dicht")
 c = w(env, "controleer", "--ini", "SVL")
 check("retro-taak niet van toepassing voor wie geen eigenaar is", punt(c, "RT1")["status"] == "nvt")
@@ -573,6 +573,79 @@ pg = (HERE / "checklist.html").read_text(encoding="utf-8")
 check("checklist kent plaud_ketting en niet meer de oude geldt-waarden", "plaud_ketting" in pg and "lokale_inbox" not in pg and "plaud_ophaler" not in pg)
 inst.write_text(volledig, encoding="utf-8")
 env.pop("E3_CLAUDE_STATUS")
+
+# 12. Bijlagen-wachtrij in E3Brain persoonlijk (flow 10), webapp 1.11, B2, en de mailrondes uit de dienstregeling
+my = t / "drive/My Drive"
+nieuwlog = my / "E3Brain persoonlijk/wachtrij/_Uit mail/bijlagen.json"
+nu = dt.datetime.now().astimezone().isoformat()
+check("A14 maakte de wachtrij in E3Brain persoonlijk", (my / "E3Brain persoonlijk/wachtrij").is_dir())
+c = w(env, "controleer", "--ini", "JDS")
+check("B1 leest het logboek in E3Brain persoonlijk › wachtrij", punt(c, "B1")["status"] == "ok" and "root" not in punt(c, "B1")["detail"], punt(c, "B1"))
+nieuwlog.write_text(json.dumps({"laatsteRun": nu, "items": []}), encoding="utf-8")
+(my / "E3Brain persoonlijk/wachtrij/bijlage.pdf").write_text("x", encoding="utf-8")
+c = w(env, "controleer", "--ini", "JDS")
+check("B1 telt de bestanden in de nieuwe wachtrij", "1 bestanden in de wachtrij" in punt(c, "B1")["detail"], punt(c, "B1"))
+nieuwlog.unlink()
+(my / "_Uit mail").mkdir()
+(my / "_Uit mail/bijlagen.json").write_text(json.dumps({"laatsteRun": nu, "items": []}), encoding="utf-8")
+c = w(env, "controleer", "--ini", "JDS")
+check("B1 aanvaardt het logboek nog in de root (overgang) en zegt het", punt(c, "B1")["status"] == "ok"
+      and "root van My Drive" in punt(c, "B1")["detail"], punt(c, "B1"))
+
+status = my / "Dossier-sync/dossync-status.json"
+status.write_text(json.dumps({"gebruiker": "JDS", "geschreven": nu, "versie": "1.10"}), encoding="utf-8")
+c = w(env, "controleer", "--ini", "JDS")
+check("M1 fout met de oude triggers: de webapp één keer openen", punt(c, "M1")["status"] == "fout" and "oude triggers" in punt(c, "M1")["detail"]
+      and "/a/macros/" not in punt(c, "M1")["gebruiker"] or "volledige link" in punt(c, "M1")["gebruiker"], punt(c, "M1"))
+status.write_text(json.dumps({"gebruiker": "JDS", "geschreven": nu, "versie": "1.11"}), encoding="utf-8")
+c = w(env, "controleer", "--ini", "JDS")
+check("M1 ok op versie 1.11", punt(c, "M1")["status"] == "ok" and "één trigger per kwartier" in punt(c, "M1")["detail"], punt(c, "M1"))
+
+prof_pad = t / "home/.claude/e3-shared.json"
+prof = json.loads(prof_pad.read_text(encoding="utf-8"))
+prof["wachtrij"] = str(my)
+prof_pad.write_text(json.dumps(prof), encoding="utf-8")
+c = w(env, "controleer")
+check("A6 fout zolang de wachtrij naar de root van My Drive wijst", punt(c, "A6")["status"] == "fout" and "wachtrij" in punt(c, "A6")["detail"], punt(c, "A6"))
+w(env, "doe", "A6")
+prof = json.loads(prof_pad.read_text(encoding="utf-8"))
+check("A6 zet de wachtrij op E3Brain persoonlijk › wachtrij", prof["wachtrij"].replace("\\", "/").endswith("E3Brain persoonlijk/wachtrij"), prof)
+
+rq = home / ".claude/plugins/cache/e3-dossync/dossync/2.11.0/skills/route-queue/scripts"
+rq.mkdir(parents=True)
+(rq / "wachtrij.py").write_text(
+    "import json, os, sys, pathlib\nd = json.loads(os.environ.get('E3_TEST_VERHUIS') or '{}')\n"
+    "if '--ja' in sys.argv:\n    log = sys.argv[sys.argv.index('--log') + 1]\n    pathlib.Path(log).write_text('verhuis\\n', encoding='utf-8')\n"
+    "    print(json.dumps({'verplaatst': len(d.get('mee') or []), 'resultaten': [{'bron': x['naam'], 'resultaat': 'verplaatst'} "
+    "for x in d.get('mee') or []], 'log': log}))\nelse:\n    print(json.dumps(d))\n", encoding="utf-8")
+lijst = {"mee": [{"naam": "oud.pdf", "grootte": 1}], "dubbel_naar_te_verwijderen": [], "te_verwijderen_map": {"aantal": 0},
+         "blijft_staan": [{"naam": "eigen.docx"}], "logboek": None}
+ev = dict(env, E3_TEST_VERHUIS=json.dumps(lijst))
+c = w(ev, "controleer")
+check("B2 wacht zolang het logboek nog in de root staat", punt(c, "B2")["status"] == "open" and "1.11" in punt(c, "B2")["detail"], punt(c, "B2"))
+r = w(ev, "doe", "B2")
+check("B2 verhuist niets zolang de webapp niet op 1.11 draaide", r["uit"][0].startswith("wacht tot de webapp"), r["uit"])
+(my / "_Uit mail/bijlagen.json").unlink()
+(my / "_Uit mail").rmdir()
+nieuwlog.write_text(json.dumps({"laatsteRun": nu, "items": []}), encoding="utf-8")
+c = w(ev, "controleer")
+check("B2 fout met nog een bijlage in de root", punt(c, "B2")["status"] == "fout" and "nog 1 bestanden" in punt(c, "B2")["detail"], punt(c, "B2"))
+voor = foto(t)
+r = w(ev, "doe", "B2", "--droog")
+check("B2 droog toont de lijst en schrijft niets", "oud.pdf" in r["uit"][0] and foto(t) == voor, r["uit"])
+r = w(ev, "doe", "B2")
+check("B2 verhuist niets zonder ja", r["uit"][0].startswith("VRAAG: mag ik deze 1 bestanden") and "oud.pdf" in r["uit"][0], r["uit"])
+r = w(ev, "doe", "B2", "--ja")
+logs = list((my / "Claude workspace/_route-queue-log").glob("*-route-queue.md"))
+check("B2 na ja: verhuisd met een log in de werkmap", r["uit"][0].startswith("1 verhuisd, log in") and len(logs) == 1, r["uit"])
+c = w(dict(env, E3_TEST_VERHUIS=json.dumps(dict(lijst, mee=[]))), "controleer")
+check("B2 ok als de root geen bijlagen meer heeft", punt(c, "B2")["status"] == "ok" and "1 eigen" in punt(c, "B2")["detail"], punt(c, "B2"))
+
+c = w(env, "controleer", "--ini", "JDS")
+m2 = punt(c, "M2")["actie"]
+check("M2 plant de mailrondes uit de dienstregeling", all(x in m2 for x in ("E3 ochtend JDS", "7u", "0 7 * * 1-5", "E3 Dossync mailrun JDS",
+                                                                          "12u en 16u", "0 12,16 * * 1-5")) and "Arx" not in m2, m2)
+check("BR1 zit in de ochtendtaak", "E3 ochtend JDS" in punt(c, "BR1")["actie"] and "echt" in punt(c, "BR1")["actie"], punt(c, "BR1")["actie"])
 
 print(f"\n{'ALLES OK' if not fouten else f'{fouten} FOUT(EN)'}  ({t})")
 sys.exit(1 if fouten else 0)

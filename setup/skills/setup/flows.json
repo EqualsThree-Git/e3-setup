@@ -1,5 +1,5 @@
 {
-  "versie": "2.2",
+  "versie": "2.3",
   "bijgewerkt": "2026-11-27",
   "uitleg": "Enige plek waar staat wat de wizard aansluit. Een flow die rijp is, zet je hier van 'proef' of 'dicht' op 'vrij'; de wizard zelf verandert dan niet. vrijgave: vrij = alles aansluiten en inplannen, proef = voorbereiden en testen maar geen taak inplannen, dicht = enkel tonen wat ontbreekt. Namen, adressen en de webapp staan niet hier (de repo is publiek) maar in paden.config op de shared drive; de wizard voegt die samen.",
   "domein": "equalsthree.be",
@@ -107,7 +107,7 @@
       "soort": "pc",
       "geldt": "altijd",
       "controle": "mappen",
-      "actie": "Nakijken dat Dossync › inbox, inbox › ruw, opvang en opvang › runs op E3 - Finance bestaan en My Drive › Claude workspace (je werkmap) aanmaken. My Drive zelf is de wachtrij van route-queue (TE VERPLAATSEN); de webapp maakt Dossier-sync en _Uit mail zelf aan, en My Drive › E3Brain persoonlijk › import gsm aanmaken (wat de gsm met de Drive-app deelt; de wachter leegt ze).",
+      "actie": "Nakijken dat Dossync › inbox, inbox › ruw, opvang en opvang › runs op E3 - Finance bestaan, en in je My Drive aanmaken wat ontbreekt: Claude workspace (je werkmap), E3Brain persoonlijk › wachtrij (de bijlagen-wachtrij: de webapp zet er de bijlagen uit Gmail in, route-queue zet ze in het klantdossier) en E3Brain persoonlijk › import gsm (wat de gsm met de Drive-app deelt; de wachter leegt ze). Dossier-sync maakt de webapp zelf aan.",
       "gebruiker": "Een map op E3 - Finance ontbreekt: vraag {beheerder} ze aan te maken.",
       "wie": "beheerder"
     },
@@ -118,7 +118,7 @@
       "soort": "pc",
       "geldt": "altijd",
       "controle": "profiel",
-      "actie": "~/.claude/e3-shared.json bijwerken (initialen, mailbox, drive, werkmap)",
+      "actie": "~/.claude/e3-shared.json bijwerken: initialen, mailbox, drive, werkmap en wachtrij (My Drive › E3Brain persoonlijk › wachtrij).",
       "gebruiker": "",
       "wie": "wizard"
     },
@@ -196,17 +196,17 @@
       "soort": "pc",
       "geldt": "altijd",
       "controle": "webapp",
-      "actie": "Nagaan of dossync-status.json in je My Drive › Dossier-sync jonger is dan 30 minuten en op jouw initialen staat",
-      "gebruiker": "Open {webapp}, kies {mail}, klik Review permissions › Advanced › Go to Dossync › Allow, en daarna op Dossync activeren in de gele balk.",
+      "actie": "Nagaan of dossync-status.json in je My Drive › Dossier-sync jonger is dan 30 minuten, op jouw initialen staat en met versie 1.11 of later draait (één trigger per kwartier: eerst de verwerking, dan de bijlagen).",
+      "gebruiker": "Open {webapp} (altijd deze volledige link: de korte zonder /a/macros/equalsthree.be geeft 'Kan het bestand momenteel niet openen' als er meer Google-accounts in Chrome zitten), kies {mail}, klik Review permissions › Advanced › Go to Dossync › Allow, en daarna op Dossync activeren in de gele balk. Was Dossync al actief, open de link dan gewoon één keer: de webapp zet zichzelf over op één trigger per kwartier.",
       "wie": "jij"
     },
     {
       "id": "M2",
       "flow": "01",
-      "titel": "Dossync-cloudtaken",
+      "titel": "Mailrondes in de cloud",
       "soort": "taak",
       "geldt": "altijd",
-      "controle": "Twee routines 'Dossync {INI} ochtend' en 'Dossync {INI} namiddag' op claude.ai, op werkdagen (maandag tot vrijdag) om {uren}, repo e3-dossync, connectors Arx, Gmail, Google Calendar, Google Drive. Eerste run is een proefrun. Omgeving: de persoonlijke omgeving uit A11 (E3CRM-cloudsleutel). Vereist A13 (GitHub op claude.ai).",
+      "controle": "Twee routines op claude.ai van de gebruiker zelf (dienstregeling, ritme 3), op werkdagen, Brusselse tijd, repository EqualsThree-Git/e3-dossync, connectors Gmail, Google Calendar en Google Drive op {mail}, omgeving: de persoonlijke omgeving uit A11 (E3CRM-cloudsleutel): '{ochtend}' om {ochtend_uren} (cron {ochtend_cron}): eerst de mailrun, daarna de briefing (BR1); en '{mailrun}' om {mailrun_uren} (cron {mailrun_cron}): enkel de mailrun. De eerste run is een proefrun. Oude routines ('Dossync {INI} ochtend', 'Dossync {INI} namiddag', 'Briefing {INI}', een mailrun om 7u) na een ja verwijderen of omzetten. Vereist A13 (GitHub op claude.ai) en A11.",
       "noteer": "taak.dossync",
       "gebruiker": "",
       "wie": "wizard"
@@ -214,10 +214,10 @@
     {
       "id": "BR1",
       "flow": "briefing",
-      "titel": "Briefing-cloudtaak",
+      "titel": "Briefing in de ochtendtaak",
       "soort": "taak",
       "geldt": "altijd",
-      "controle": "Routine 'Briefing {INI}' op claude.ai, werkdagen om 7u15 (Brusselse tijd, cron 15 7 * * 1-5), repository EqualsThree-Git/e3-dossync, connectors Google Calendar, Gmail, Google Drive en Arx op {mail}. Prompt: 'Voer /dossync:briefing uit voor {INI}, {mail}, echt.' De eerste run is een proef zonder 'echt': 'Voer /dossync:briefing uit voor {INI}, {mail}.' (die maakt een proefbestand dat de mail van 8u niet leest). Na de proef met goedkeuring van de gebruiker omzetten naar de prompt met 'echt'. Omgeving: de persoonlijke omgeving uit A11 (E3CRM-cloudsleutel). Vereist A13 (GitHub op claude.ai).",
+      "controle": "De briefing is geen eigen routine meer: ze draait in '{ochtend}' na de mailrun (dienstregeling, ritme 3), om {ochtend_uren} (cron {ochtend_cron}), connectors Google Calendar, Gmail en Google Drive op {mail}. Tweede deel van de prompt: 'Voer daarna /dossync:briefing uit voor {INI}, {mail}, echt.' De eerste keer zonder 'echt' (proef: een proefbestand in Dossync › briefing dat de mail van 8u niet leest); na een goede proef en een ja van de gebruiker 'echt' toevoegen. Een oude routine 'Briefing {INI}' om 7u15 mag weg na een ja. Vereist M2, A13 en A11.",
       "noteer": "taak.briefing",
       "gebruiker": "",
       "wie": "wizard"
@@ -351,9 +351,20 @@
       "soort": "pc",
       "geldt": "altijd",
       "controle": "bijlagen",
-      "actie": "Nagaan of _Uit mail/bijlagen.json in je My Drive de laatste 30 minuten bijgewerkt is (tussen 6u en 22u)",
+      "actie": "Nagaan of _Uit mail/bijlagen.json in My Drive › E3Brain persoonlijk › wachtrij de laatste 30 minuten bijgewerkt is (tussen 6u en 22u). Staat het nog in de root van My Drive, dan draaide de webapp nog niet met versie 1.11: het Apps Script verhuist het logboek zelf bij zijn eerste run, nooit met de hand.",
       "gebruiker": "Open {webapp} en klik opnieuw op Dossync activeren; sta ook Gmail lezen toe.",
       "wie": "jij"
+    },
+    {
+      "id": "B2",
+      "flow": "10",
+      "titel": "Oude bijlagen verhuizen",
+      "soort": "pc",
+      "geldt": "altijd",
+      "controle": "wachtrij_oud",
+      "actie": "Wat nog in de root van My Drive staat uit de tijd dat dat de wachtrij was (bijlagen van het Apps Script, kopieën ervan, _Te verwijderen), verhuizen naar My Drive › E3Brain persoonlijk › wachtrij met wachtrij.py verhuis van route-queue: eerst de lijst tonen, pas na een ja verplaatsen, met een regel in de move-log van route-queue (routeLog). Pas als de webapp met versie 1.11 draaide (het logboek _Uit mail staat dan in de wachtrij). Eigen losse bestanden en mappen blijven staan.",
+      "gebruiker": "",
+      "wie": "wizard"
     },
     {
       "id": "K1",
@@ -398,7 +409,7 @@
         "M2"
       ],
       "vrijgave": "vrij",
-      "test": "De proefrun van 'Dossync {INI} ochtend' schreef een uit-bestand met who = {INI} en run.mailbox = {mail}, of dossync-status.json toont een laatsteRun van vandaag."
+      "test": "De proefrun van '{ochtend}' gaf een samenvatting met mailbox = {mail} en agenda = ok en legde de voorstellen neer met --proef; daarna staan '{ochtend}' en '{mailrun}' op een gewone run."
     },
     {
       "id": "02",
@@ -408,7 +419,7 @@
       ],
       "vrijgave": "vrij",
       "connector": "calendar",
-      "test": "De Calendar-connector leest {mail} als eigenaar met titels en gasten, en de proefrun meldt agenda.calendar = ok."
+      "test": "De Calendar-connector leest {mail} als eigenaar met titels en gasten, en de proefrun van '{ochtend}' meldt agenda = ok."
     },
     {
       "id": "dienst",
@@ -490,10 +501,11 @@
       "naam": "Bijlagen",
       "stappen": [
         "M1",
-        "B1"
+        "B1",
+        "B2"
       ],
       "vrijgave": "vrij",
-      "test": "_Uit mail/bijlagen.json is de laatste 30 minuten bijgewerkt."
+      "test": "My Drive › E3Brain persoonlijk › wachtrij › _Uit mail › bijlagen.json is de laatste 30 minuten bijgewerkt, de webapp draait met versie 1.11 (één trigger per kwartier) en de root van My Drive heeft geen bijlagen meer."
     },
     {
       "id": "11",
@@ -514,8 +526,8 @@
       ],
       "vrijgave": "proef",
       "connector": "calendar",
-      "reden": "dossync:briefing is nieuw; eerst een proefrun zonder 'echt', daarna omzetten.",
-      "test": "De proefrun van 'Briefing {INI}' schreef een proefbestand in Dossync > briefing met {INI} en {mail}; na het omzetten staat er om 7u15 een bestand '<YYMMDD> {INI}.json'."
+      "reden": "De briefing zit sinds 27/11 in de ochtendtaak, na de mailrun; eerst een proef zonder 'echt', daarna omzetten.",
+      "test": "De proefrun van '{ochtend}' schreef een proefbestand in Dossync › briefing met {INI} en {mail}; na het omzetten staat er elke werkdag na de ochtendtaak een bestand '<YYMMDD> {INI}.json'."
     },
     {
       "id": "12",
